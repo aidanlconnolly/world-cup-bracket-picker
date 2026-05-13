@@ -1219,14 +1219,16 @@ function renderAll() {
 
 // ─── SHARE / STATE ────────────────────────────────────────────
 function saveState() {
-  try { history.replaceState(null, '', '#' + btoa(JSON.stringify(state))); } catch {}
+  try { history.replaceState(null, '', '#' + encodeURIComponent(JSON.stringify(state))); } catch {}
 }
 
 function loadState() {
   const hash = window.location.hash.slice(1);
   if (!hash) return;
   try {
-    const loaded = JSON.parse(atob(hash));
+    let json;
+    try { json = decodeURIComponent(hash); } catch { json = atob(hash); }
+    const loaded = JSON.parse(json);
     state = { ...state, ...loaded };
     if (!state.selectedThirds) state.selectedThirds = [];
     pickState = {};
