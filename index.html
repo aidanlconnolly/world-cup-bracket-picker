@@ -1218,17 +1218,44 @@ function renderAll() {
 }
 
 // ─── SHARE / STATE ────────────────────────────────────────────
+function encodeHash(obj) {
+  const json = JSON.stringify(obj);
+  const bytes = new TextEncoder().encode(json);
+  let bin = '';
+  bytes.forEach(b => bin += String.fromCharCode(b));
+  return btoa(bin);
+}
+
+function decodeHash(hash) {
+  const bin = atob(hash);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
 function saveState() {
-  try { history.replaceState(null, '', '#' + encodeURIComponent(JSON.stringify(state))); } catch {}
+  try {
+    const stripped = {
+      mode: state.mode,
+      picks: state.picks,
+      groups: state.groups,
+      ko: Object.fromEntries(Object.entries(state.ko).map(([k,v]) => [k, {winner:v.winner, loser:v.loser, prob:v.prob}])),
+      finals: {
+        final: state.finals.final ? {winner:state.finals.final.winner, loser:state.finals.final.loser, prob:state.finals.final.prob} : null,
+        thirdPlace: state.finals.thirdPlace ? {winner:state.finals.thirdPlace.winner, loser:state.finals.thirdPlace.loser, prob:state.finals.thirdPlace.prob} : null,
+      },
+      awards: state.awards,
+      selectedThirds: state.selectedThirds,
+    };
+    history.replaceState(null, '', '#' + encodeHash(stripped));
+  } catch {}
 }
 
 function loadState() {
   const hash = window.location.hash.slice(1);
   if (!hash) return;
   try {
-    let json;
-    try { json = decodeURIComponent(hash); } catch { json = atob(hash); }
-    const loaded = JSON.parse(json);
+    const loaded = decodeHash(hash);
     state = { ...state, ...loaded };
     if (!state.selectedThirds) state.selectedThirds = [];
     pickState = {};
