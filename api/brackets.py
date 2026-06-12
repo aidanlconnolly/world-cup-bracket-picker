@@ -66,8 +66,20 @@ class handler(BaseHTTPRequestHandler):
             return self._respond({'error': 'bad request'}, 400)
 
         name = re.sub(r'[\x00-\x1f<>]', '', str(data.get('name', ''))).strip()[:30]
+        if not name:
+            return self._respond({'error': 'invalid bracket'}, 400)
+
+        # {"name": ..., "remove": true} unpublishes that name (no auth — friend-group toy)
+        if data.get('remove'):
+            try:
+                remaining = [b for b in load_brackets() if b.get('name', '').lower() != name.lower()]
+                kv_command('SET', KEY, json.dumps(remaining))
+                return self._respond({'ok': True, 'removed': name})
+            except Exception:
+                return self._respond({'error': 'storage unavailable'}, 502)
+
         bracket_hash = str(data.get('hash', ''))
-        if not name or not bracket_hash or len(bracket_hash) > 50000:
+        if not bracket_hash or len(bracket_hash) > 50000:
             return self._respond({'error': 'invalid bracket'}, 400)
 
         entry = {

@@ -42,17 +42,19 @@ Open http://localhost:3000
 
 ## Architecture
 - `index.html` — single-page app, all JS inline; three tabs (`#view-bracket`, `#view-live`, `#view-explore`) toggled by `setTab()`
-- `server.py` — Flask dev server serving index.html + proxying Claude API calls; Anthropic
-  client is lazy (boots without `ANTHROPIC_API_KEY`, AI endpoints then 503). Local
-  /api/brackets stores to `brackets.local.json` (gitignored)
-- `api/simulate.py` — Vercel serverless function for /api/simulate
-- `api/final.py` — Vercel serverless function for /api/final
-- `api/brackets.py` — Vercel serverless function for /api/brackets (shared Explore
-  brackets). Stores one JSON array under key `wc2026:brackets` in Vercel KV via its REST
-  API (stdlib urllib, no deps). **Needs `KV_REST_API_URL` + `KV_REST_API_TOKEN`** (or
-  `UPSTASH_REDIS_REST_*`) env vars on the Vercel project — connect a KV/Upstash store in
-  the dashboard, same as Penalty shootout. Without them it returns 503 and the Explore
-  tab shows a friendly error.
+- `server.py` — Flask app serving index.html + all /api routes; Anthropic client is lazy
+  (boots without `ANTHROPIC_API_KEY`, AI endpoints then 503). **Vercel deploys this Flask
+  app via the Python/Flask preset and routes /api through it** (confirmed via prod
+  tracebacks — `api/*.py` handler files are not what answers in prod). /api/brackets
+  (shared Explore brackets, one JSON array under KV key `wc2026:brackets`) therefore
+  uses Vercel KV via REST (stdlib urllib) when `KV_REST_API_URL`+`KV_REST_API_TOKEN`
+  (or `UPSTASH_REDIS_REST_*`) env vars exist, else `brackets.local.json` (gitignored)
+  for local dev. POST `{"name": X, "remove": true}` unpublishes a name (no auth).
+  The KV store `upstash-kv-amethyst-anchor` is connected to this Vercel project
+  (shared with penalty-shootout + finance-tracker; keys namespaced by prefix).
+- `api/simulate.py` / `api/final.py` / `api/brackets.py` — standalone Vercel Python
+  serverless handlers kept in sync with the Flask routes in case routing ever switches
+  to per-function mode.
 
 ## Preview caveat
 The Claude Code preview runner cannot read this Desktop folder (macOS TCC), so

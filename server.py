@@ -3,6 +3,7 @@ import os
 import re
 import secrets
 import time
+import urllib.request
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import anthropic
@@ -24,15 +25,49 @@ def get_client():
 def index():
     return send_from_directory('.', 'index.html')
 
-# ─── Shared brackets (local dev: file-backed; prod uses api/brackets.py + Vercel KV) ───
+# ─── Shared brackets ─────────────────────────────────────────────────────────
+# On Vercel this Flask app serves the /api routes too (Flask preset), so the
+# brackets route must use KV there (read-only filesystem). Locally, with no KV
+# env vars, it falls back to a JSON file next to server.py.
 BRACKETS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'brackets.local.json')
+KV_KEY = 'wc2026:brackets'
+
+def kv_config():
+    url = os.environ.get('KV_REST_API_URL') or os.environ.get('UPSTASH_REDIS_REST_URL')
+    token = os.environ.get('KV_REST_API_TOKEN') or os.environ.get('UPSTASH_REDIS_REST_TOKEN')
+    return (url, token) if url and token else (None, None)
+
+def kv_command(*args):
+    url, token = kv_config()
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(list(args)).encode(),
+        headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'},
+        method='POST',
+    )
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read()).get('result')
 
 def load_brackets():
+    if kv_config()[0]:
+        try:
+            raw = kv_command('GET', KV_KEY)
+            lst = json.loads(raw) if raw else []
+            return lst if isinstance(lst, list) else []
+        except Exception:
+            return []
     try:
         with open(BRACKETS_FILE) as f:
             return json.load(f)
     except Exception:
         return []
+
+def save_brackets(lst):
+    if kv_config()[0]:
+        kv_command('SET', KV_KEY, json.dumps(lst))
+        return
+    with open(BRACKETS_FILE, 'w') as f:
+        json.dump(lst, f)
 
 @app.route('/api/brackets', methods=['GET', 'POST', 'OPTIONS'])
 def brackets():
@@ -43,8 +78,21 @@ def brackets():
 
     data = request.json or {}
     name = re.sub(r'[\x00-\x1f<>]', '', str(data.get('name', ''))).strip()[:30]
+    if not name:
+        return jsonify({'error': 'invalid bracket'}), 400
+
+    remaining = [b for b in load_brackets() if b.get('name', '').lower() != name.lower()]
+
+    # {"name": ..., "remove": true} unpublishes that name (no auth — friend-group toy)
+    if data.get('remove'):
+        try:
+            save_brackets(remaining)
+        except Exception:
+            return jsonify({'error': 'storage unavailable'}), 502
+        return jsonify({'ok': True, 'removed': name})
+
     bracket_hash = str(data.get('hash', ''))
-    if not name or not bracket_hash or len(bracket_hash) > 50000:
+    if not bracket_hash or len(bracket_hash) > 50000:
         return jsonify({'error': 'invalid bracket'}), 400
 
     entry = {
@@ -56,10 +104,11 @@ def brackets():
         'hash': bracket_hash,
         'ts': int(time.time() * 1000),
     }
-    lst = [b for b in load_brackets() if b.get('name', '').lower() != name.lower()]
-    lst.insert(0, entry)
-    with open(BRACKETS_FILE, 'w') as f:
-        json.dump(lst[:100], f)
+    remaining.insert(0, entry)
+    try:
+        save_brackets(remaining[:100])
+    except Exception:
+        return jsonify({'error': 'storage unavailable'}), 502
     return jsonify({'ok': True, 'id': entry['id']})
 
 @app.route('/api/simulate', methods=['POST', 'OPTIONS'])
