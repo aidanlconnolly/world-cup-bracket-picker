@@ -237,14 +237,15 @@ sniffing for old entries). `bracketLeaderboardHTML()` ranks by the active `gbTab
 (`total`/`group`/`ko`); rows whose name matches one of your local brackets get a
 "YOU — tap to edit" badge and route to `switchToBracket()` instead of the read-only
 viewer. `predictorLeaderboardHTML()` ranks predictor entries by
-`scorePredictorPicks()`. Until a real result exists, rows sort by recency and show 0.
+`scorePredictor()` (group +1 per real game + KO advancement). Until a real result
+exists, rows sort by recency and show 0.
 
 - **Publish** (`openPublishModal()` → `submitPublish()`): an **inline modal**, not
   `prompt()` — `prompt()` is silently suppressed in many mobile/in-app browsers, which
   was the old "publish doesn't work for friends" bug. Partial (group-stage-only)
   brackets publish fine (empty `champion`). Publishing also banks a local copy.
 - **New Bracket** (`newBracket()`, the old Reset): banks the current bracket into
-  `wcMyBrackets` (via `saveMyBracket()`), then starts a `freshState()` — so you can keep
+  `wcMyBrackets` (via `persistActive()`), then starts a `freshState()` — so you can keep
   several entries (one per pool). `bracketHasPicks()` gates both publish and banking.
 
 ## Vercel environment notes
