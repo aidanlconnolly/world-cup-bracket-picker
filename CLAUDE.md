@@ -99,11 +99,21 @@ each round).
 KO slots by match id), the spine for all Tickets views. Demand = Σ P×`DEMAND` weight,
 hosts ×1.5 at home venues (`VENUES` capacities + `DEMAND` fanbase weights are editable
 guesses). Views, top to bottom:
+- **Buy board** (always visible, the hero): `buildTiers()` grades every `gameRows()`
+  row S→D by buy score = 40·demand pctile + 20·scarcity pctile + 15·certainty +
+  10·momentum ± value adj + host bonus. Tier cuts are relative (S≈top 7%, A 12%,
+  B 18%, C 25%, D rest). Each card carries the highest-ranked thesis it fits + up to
+  5 cross-signal rationale bullets. S/A render expanded; B/C/D are folds.
 - **Theses**: `thesisList()` buckets `gameRows()` into investment archetypes
   (blue-chip locks, host gravity, small-building squeeze, trophy rounds, superpower
   lottery, momentum rides, mispriced paper — the last only with ≥3 entered prices);
   overlap allowed. Ranked by edge = conviction × avg demand of the top-5 qualifying
   games + their trend vs yesterday; empty theses are hidden.
+
+Everything below the Buy board is wrapped in `fold(id, title, body, sub)` —
+`<details>` sections whose open state persists in `wcFolds` (all closed by default;
+My inventory auto-opens when holdings exist). Shared row helpers `rowTrend()` /
+`hostPull()` feed both the theses and the tier grader.
 - **Since yesterday**: demand + appearance-prob moves vs the most recent prior daily
   snapshot (`wcMCSnaps`, ≤21 days kept; `saveDailySnapshot()` writes today's after each
   run; `prevDailySnapshot()` reads the latest day `< today`).

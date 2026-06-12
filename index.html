@@ -439,6 +439,25 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 .tk-val { font-size: 9px; font-weight: 700; border-radius: 4px; padding: 1px 5px; margin-left: 4px; background: rgba(255,255,255,0.08); color: var(--muted); }
 .tk-val-under { background: rgba(46,204,113,0.2); color: #2ecc71; }
 .tk-val-rich { background: rgba(255,107,107,0.18); color: #ff6b6b; }
+.tk-tier-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.tk-tier-head { display: flex; align-items: center; gap: 10px; margin: 18px 0 10px; font-size: 13px; font-weight: 700; }
+.tk-tier-desc { font-size: 11px; color: var(--muted); font-weight: 400; }
+.tk-tier-badge { display: inline-flex; width: 24px; height: 24px; align-items: center; justify-content: center; border-radius: 6px; font-weight: 800; font-size: 13px; flex-shrink: 0; background: rgba(255,255,255,0.1); }
+.tk-tier-badge.tS { background: rgba(245,197,66,0.22); color: var(--gold); border: 1px solid rgba(245,197,66,0.5); }
+.tk-tier-badge.tA { background: rgba(46,204,113,0.16); color: #2ecc71; border: 1px solid rgba(46,204,113,0.35); }
+.tk-tier-badge.tB { background: rgba(74,163,255,0.14); color: #4aa3ff; border: 1px solid rgba(74,163,255,0.3); }
+.tk-tier-badge.tC { background: rgba(255,255,255,0.08); color: var(--muted); border: 1px solid rgba(255,255,255,0.15); }
+.tk-tier-badge.tD { background: rgba(255,107,107,0.1); color: #ff6b6b; border: 1px solid rgba(255,107,107,0.25); }
+.tk-tier-cardhead { text-transform: none; font-size: 12.5px; letter-spacing: 0; }
+.tk-tier-thesis { font-size: 11px; margin-top: 2px; color: var(--gold); }
+.tk-bullets { margin: 8px 0 0; padding-left: 16px; }
+.tk-bullets li { font-size: 11px; color: var(--muted); line-height: 1.45; margin: 2px 0; }
+.tk-tier-foot { display: flex; align-items: center; gap: 8px; margin-top: 10px; justify-content: flex-end; }
+.tk-fold > summary { cursor: pointer; list-style: none; }
+.tk-fold > summary::-webkit-details-marker { display: none; }
+.tk-fold > summary .tk-h { margin: 24px 0 12px; }
+.tk-fold > summary .tk-h::before { content: '▸'; color: var(--muted); font-size: 11px; }
+.tk-fold[open] > summary .tk-h::before { content: '▾'; }
 .tk-th-bar { width: 100%; margin: 8px 0 2px; }
 .tk-th-game { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
 .tk-th-game + .tk-th-game { border-top: 1px solid rgba(255,255,255,0.06); }
@@ -2321,8 +2340,8 @@ function renderTickets() {
   const body = document.getElementById('tickets-body');
   if (!mc.runs) { body.innerHTML = '<p class="live-empty">No simulation data yet.</p>'; return; }
   _rowsCache = null;
-  body.innerHTML = thesesHTML() + sinceYesterdayHTML() + inventoryHTML() + cityBoardHTML()
-    + hotTicketsHTML() + matchExplorerHTML() + reachMatrixHTML() + moversHTML();
+  body.innerHTML = tierBoardHTML() + thesesHTML() + sinceYesterdayHTML() + inventoryHTML()
+    + cityBoardHTML() + hotTicketsHTML() + matchExplorerHTML() + reachMatrixHTML() + moversHTML();
 }
 
 // ─── inventory, prices, daily snapshots ──────────────────────
@@ -2331,6 +2350,18 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } ca
 
 let watchlist = lsGet('wcWatch', {});   // gameKey → {keyTeam?, cost?}
 let prices = lsGet('wcPrices', {});     // gameKey → current get-in $ (manual or SeatGeek)
+
+// Collapsible detail sections — everything below the Buy board folds away;
+// open/closed survives re-renders and reloads (`wcFolds`: sectionId → bool).
+let folds = lsGet('wcFolds', {});
+function setFold(id, open) { if (folds[id] !== open) { folds[id] = open; lsSet('wcFolds', folds); } }
+function fold(id, title, body, sub = '') {
+  const open = folds[id] != null ? folds[id] : (id === 'inventory' && Object.keys(watchlist).length > 0);
+  return `<details class="tk-fold"${open ? ' open' : ''} ontoggle="setFold('${id}', this.open)">
+    <summary><h3 class="tk-h">${title}${sub ? ` <span class="tk-sub">${sub}</span>` : ''}</h3></summary>
+    ${body}
+  </details>`;
+}
 
 // One unified row per future game (group fixtures + knockout slots), stable keys.
 let _rowsCache = null;
@@ -2501,15 +2532,19 @@ async function fetchSeatGeekPrices() {
 // scores edge = conviction × avg demand of its top targets + their momentum
 // vs the last daily snapshot. Conviction discounts event risk: locked
 // matchups carry none, lottery exposure carries a lot.
+// Shared row helpers: demand trend vs the last daily snapshot (null = no
+// baseline yet) and host-nation pull at a home venue.
+function rowTrend(r, prev) { const pe = prev && prev.m[r.key]; return pe ? r.score - pe.d : null; }
+function hostPull(r) {
+  const vc = venueCountry(r.venue);
+  const host = vc === 'US' ? 'USA' : vc === 'MX' ? 'Mexico' : 'Canada';
+  const e = r.top.find(x => x.team === host);
+  return e && e.p >= 0.005 ? { host, p: e.p, ev: e.p * demandWeight(host, r.venue) } : null;
+}
+
 function thesisList() {
   const prev = prevDailySnapshot();
-  const trendOf = r => { const pe = prev && prev.m[r.key]; return pe ? r.score - pe.d : 0; };
-  const hostAt = r => {
-    const vc = venueCountry(r.venue);
-    const host = vc === 'US' ? 'USA' : vc === 'MX' ? 'Mexico' : 'Canada';
-    const e = r.top.find(x => x.team === host);
-    return e && e.p >= 0.005 ? { host, p: e.p, ev: e.p * demandWeight(host, r.venue) } : null;
-  };
+  const trendOf = r => rowTrend(r, prev) ?? 0;
   const lotteryPick = r => {
     if (r.kind !== 'ko' || r.locked) return null;
     let best = null;
@@ -2529,9 +2564,9 @@ function thesisList() {
       stat: r => `demand ${r.score.toFixed(1)} · teams locked` },
     { icon:'🏠', name:'Host-nation gravity', conviction:0.95,
       why:'USA, Mexico or Canada drawing toward a home venue — the domestic-fanbase 1.5× sets a demand floor the resale market always pays.',
-      test: r => { const h = hostAt(r); return !!h && h.ev >= 6; },
-      edge: r => hostAt(r).ev,
-      stat: r => { const h = hostAt(r); return `${TEAMS[h.host]?.flag || ''} ${h.host} ${pct(h.p)} to appear at home`; } },
+      test: r => { const h = hostPull(r); return !!h && h.ev >= 6; },
+      edge: r => hostPull(r).ev,
+      stat: r => { const h = hostPull(r); return `${TEAMS[h.host]?.flag || ''} ${h.host} ${pct(h.p)} to appear at home`; } },
     { icon:'🏟', name:'Small-building squeeze', conviction:0.9,
       why:'Real demand against the smallest stadiums in the tournament — supply does the work, so get-in prices stay stiff even on bad news.',
       test: r => { const v = VENUES[venueKey(r.venue)]; return !!v && v.cap <= 56000 && r.score >= 7; },
@@ -2573,8 +2608,7 @@ function thesesHTML() {
   const list = thesisList();
   if (!list.length) return '';
   const max = list[0].score || 1;
-  return `<h3 class="tk-h">🧭 Theses <span class="tk-sub">archetype playbook, ranked — edge = conviction × demand of top targets + momentum · a game can serve several theses</span></h3>
-  <div class="tk-explorer">${list.map((d, i) => `
+  return fold('theses', '🧭 Theses', `<div class="tk-explorer">${list.map((d, i) => `
     <div class="tk-match">
       <div class="tk-match-head"><span>#${i + 1} ${d.icon} ${d.name}</span><span class="tk-score">${d.score.toFixed(1)}</span></div>
       <div class="tk-bar tk-th-bar"><div class="tk-bar-fill" style="width:${Math.round(d.score / max * 100)}%"></div></div>
@@ -2588,19 +2622,144 @@ function thesesHTML() {
           <button class="tk-star${watchlist[r.key] ? ' on' : ''}" onclick="toggleWatch('${r.key}')" title="add to inventory">${watchlist[r.key] ? '★' : '☆'}</button>
         </div>`).join('')}
       ${d.games.length > 3 ? `<div class="tk-detail" style="margin-top:6px">+${d.games.length - 3} more qualify</div>` : ''}
-    </div>`).join('')}</div>`;
+    </div>`).join('')}</div>`,
+    'archetype playbook, ranked — edge = conviction × demand of top targets + momentum · a game can serve several theses');
+}
+
+// 000 — the Buy board: every remaining game graded S→D. One composite buy
+// score mixes every signal computed elsewhere on this tab:
+//   40 × demand percentile        (Hot-tickets logic)
+// + 20 × venue-scarcity percentile (City-board logic)
+// + 15 × certainty                (locked matchup, else P(most likely team))
+// + 10 × momentum vs yesterday    (snapshot logic, can go negative)
+// ± 12 value adj                  (price vs median $-per-demand, needs prices)
+// +  8 host bonus                 (USA/MEX/CAN pull at a home venue)
+// Tiers are relative to the remaining slate: S ≈ top 7%, A next 12%,
+// B next 18%, C next 25%, D the rest. Each game carries the highest-ranked
+// thesis it fits plus up to 5 cross-signal rationale bullets.
+function buildTiers() {
+  const rows = gameRows();
+  const n = rows.length;
+  if (!n) return { tiers: [], n: 0 };
+  const prev = prevDailySnapshot();
+  const theses = thesisList();
+  const med = medianVpd();
+  const fl = t => TEAMS[t]?.flag || '';
+  const scarcity = r => { const v = VENUES[venueKey(r.venue)]; return v ? r.score / v.cap * 1000 : 0; };
+  const demands = rows.map(r => r.score);
+  const scars = rows.map(scarcity);
+  const pctl = (arr, x) => arr.filter(v => v < x).length / Math.max(arr.length - 1, 1);
+  const demandRank = {};
+  rows.slice().sort((a, b) => b.score - a.score).forEach((r, i) => { demandRank[r.key] = i + 1; });
+  const scarRank = {};
+  rows.slice().sort((a, b) => scarcity(b) - scarcity(a)).forEach((r, i) => { scarRank[r.key] = i + 1; });
+  const ord = x => x + ({ 1: 'st', 2: 'nd', 3: 'rd' }[x % 100 > 10 && x % 100 < 14 ? 0 : x % 10] || 'th');
+
+  const graded = rows.map(r => {
+    const t = rowTrend(r, prev);
+    const cert = r.locked ? 1 : (r.top[0] ? Math.min(r.top[0].p * 1.25, 1) : 0);
+    const mom = t == null ? 0 : Math.max(-1, Math.min(1, t / 1.5));
+    const h = hostPull(r);
+    let valAdj = 0, vpd = null;
+    if (prices[r.key] > 0 && med) {
+      vpd = prices[r.key] / Math.max(r.score, 0.1);
+      valAdj = vpd < med * 0.7 ? 12 : vpd > med * 1.5 ? -12 : 3;
+    }
+    const score = 40 * pctl(demands, r.score) + 20 * pctl(scars, scarcity(r))
+      + 15 * cert + 10 * mom + valAdj + (h && h.ev >= 6 ? 8 : 0);
+    const thesis = theses.find(d => d.games.some(g => g.key === r.key)) || null;
+
+    const bullets = [];
+    bullets.push(`#${demandRank[r.key]} of ${n} on the demand board — ${r.score.toFixed(1)} expected fanbase pull`);
+    if (r.locked) bullets.push(r.kind === 'group'
+      ? 'both teams locked in — zero elimination risk on this paper'
+      : 'matchup fully locked — no team risk left, but the news is in the price (sell-window dynamics)');
+    else if (r.top[0]) {
+      const a = r.top[0], b2 = r.top[1];
+      bullets.push(`matchup still open — ${fl(a.team)} ${a.team} ${pct(a.p)} most likely${b2 ? `, ${fl(b2.team)} ${b2.team} ${pct(b2.p)} next` : ''}`);
+    }
+    const vk = venueKey(r.venue), v = VENUES[vk];
+    if (v) bullets.push(`${vk} caps at ${Math.round(v.cap / 1000)}k — ${scarcity(r).toFixed(2)} demand/1k seats, ${ord(scarRank[r.key])} tightest game on the slate`);
+    if (vpd != null) {
+      const diff = Math.round((vpd / med - 1) * 100);
+      bullets.push(vpd < med * 0.7 ? `get-in $${prices[r.key]} sits ${-diff}% below the slate median $-per-demand — cheap exposure`
+        : vpd > med * 1.5 ? `get-in $${prices[r.key]} runs ${diff}% above the slate median $-per-demand — paying up for the story`
+        : `get-in $${prices[r.key]} is roughly fair vs the slate median $-per-demand`);
+    }
+    if (h && h.ev >= 4) bullets.push(`${fl(h.host)} ${h.host} ${pct(h.p)} to appear at a home venue — domestic demand weighted ×1.5`);
+    bullets.push(t == null ? 'no daily baseline yet — trend signals start after the first overnight snapshot'
+      : Math.abs(t) >= 0.3
+      ? `demand ${t > 0 ? '+' : ''}${t.toFixed(1)} since yesterday — ${t > 0 ? 'the market is repricing this upward' : 'cooling; a better entry may come'}`
+      : 'demand flat since yesterday — entry today ≈ entry tomorrow');
+    let star = null;
+    if (r.kind === 'group') { const [x, y] = r.top; star = demandWeight(x.team, r.venue) >= demandWeight(y.team, r.venue) ? x.team : y.team; }
+    else if (r.top[0]) star = r.top[0].team;
+    if (star && mc.teamRounds[star] && mc.runs) {
+      const tr = mc.teamRounds[star];
+      bullets.push(r.kind === 'group'
+        ? `${fl(star)} ${star} reaches the knockouts in ${pct(tr.r32 / mc.runs)} of sims — group paper converts to a knockout story`
+        : `${fl(star)} ${star} wins the whole thing in ${pct(tr.champ / mc.runs)} of sims — deep-run story supports the price beyond this round`);
+    }
+    return { r, score, thesis, bullets: bullets.slice(0, 5) };
+  }).sort((a, b) => b.score - a.score);
+
+  const cut = [Math.ceil(n * 0.07), Math.ceil(n * 0.12), Math.ceil(n * 0.18), Math.ceil(n * 0.25)];
+  const defs = [
+    ['S', 'Back up the truck', 'every signal aligned'],
+    ['A', 'Strong buys', 'most signals aligned'],
+    ['B', 'Solid holds', 'good demand, an open question or two'],
+    ['C', 'Speculative', 'needs the bracket to break right'],
+    ['D', 'Pass', 'thin resale edge at face value'],
+  ];
+  const tiers = [];
+  let i = 0;
+  for (let k = 0; k < defs.length; k++) {
+    const count = k < 4 ? cut[k] : graded.length - i;
+    const items = graded.slice(i, i + count);
+    i += count;
+    if (items.length) tiers.push({ t: defs[k][0], title: defs[k][1], desc: defs[k][2], items });
+  }
+  return { tiers, n };
+}
+
+function tierBoardHTML() {
+  const { tiers, n } = buildTiers();
+  if (!n) return '';
+  const card = it => {
+    const r = it.r;
+    return `<div class="tk-match">
+      <div class="tk-match-head tk-tier-cardhead"><span>${r.label}</span><span class="tk-score">${Math.round(it.score)}</span></div>
+      <div class="tk-match-venue">${fmtKickoff(r.date)} · ${r.venue}</div>
+      <div class="tk-tier-thesis">${it.thesis ? `${it.thesis.icon} ${it.thesis.name}` : 'no thesis fits — demand-only paper'}</div>
+      <ul class="tk-bullets">${it.bullets.map(x => `<li>${x}</li>`).join('')}</ul>
+      <div class="tk-tier-foot">
+        <input class="tk-price" type="number" placeholder="$" value="${prices[r.key] || ''}" onchange="setPrice('${r.key}', this.value)" title="get-in price">
+        <button class="tk-star${watchlist[r.key] ? ' on' : ''}" onclick="toggleWatch('${r.key}')" title="add to inventory">${watchlist[r.key] ? '★' : '☆'}</button>
+      </div>
+    </div>`;
+  };
+  const grid = tr => `<div class="tk-tier-grid">${tr.items.map(card).join('')}</div>`;
+  const upper = tiers.filter(tr => tr.t === 'S' || tr.t === 'A').map(tr => `
+    <div class="tk-tier-head"><span class="tk-tier-badge t${tr.t}">${tr.t}</span> ${tr.title} <span class="tk-tier-desc">${tr.desc} · ${tr.items.length} game${tr.items.length > 1 ? 's' : ''}</span></div>
+    ${grid(tr)}`).join('');
+  const lower = tiers.filter(tr => 'BCD'.includes(tr.t)).map(tr =>
+    fold('tier' + tr.t, `<span class="tk-tier-badge t${tr.t}">${tr.t}</span> ${tr.title}`, grid(tr),
+      `${tr.desc} · ${tr.items.length} game${tr.items.length > 1 ? 's' : ''}`)).join('');
+  return `<h3 class="tk-h">💰 Buy board <span class="tk-sub">every remaining game graded S→D · score = 40·demand pctile + 20·scarcity pctile + 15·certainty + 10·momentum ± value ± host</span></h3>`
+    + upper + lower;
 }
 
 // 0 — starred holdings with hold/sell signals and P/L
 function inventoryHTML() {
   const keys = Object.keys(watchlist);
   if (!keys.length) {
-    return `<h3 class="tk-h">📌 My inventory <span class="tk-sub">star ☆ games below to track holdings — signals + P/L appear here</span></h3>`;
+    return fold('inventory', '📌 My inventory',
+      '<p class="live-empty" style="padding:6px 0 2px">Nothing held yet — star ☆ games on the Buy board to track holdings here.</p>',
+      'star ☆ games above to track holdings — signals + P/L appear here');
   }
   const byKey = Object.fromEntries(gameRows().map(r => [r.key, r]));
   const med = medianVpd();
-  return `<h3 class="tk-h">📌 My inventory <span class="tk-sub">cost = what you paid · ask = current get-in price on your marketplace</span></h3>
-  <div class="tk-board">` + keys.map(key => {
+  return fold('inventory', '📌 My inventory', `<div class="tk-board">` + keys.map(key => {
     const r = byKey[key];
     if (!r) {
       return `<div class="tk-row"><div class="tk-main"><div class="tk-label">${key}</div>
@@ -2626,7 +2785,8 @@ function inventoryHTML() {
       <span class="tk-sig tk-sig-${sig.cls}" title="${sig.why}">${sig.label}</span>
       <button class="tk-star on" onclick="toggleWatch('${key}')" title="remove">★</button>
     </div>`;
-  }).join('') + `</div>`;
+  }).join('') + `</div>`,
+  'cost = what you paid · ask = current get-in price on your marketplace');
 }
 
 // 0.5 — what moved since the last match day
@@ -2653,15 +2813,15 @@ function sinceYesterdayHTML() {
   }
   if (!moves.length) return '';
   moves.sort((a, b) => Math.abs(b.dd) - Math.abs(a.dd));
-  return `<h3 class="tk-h">🔔 Since yesterday <span class="tk-sub">probability & demand moves vs the last daily snapshot — these reprice first</span></h3>
-  <div class="tk-board">${moves.slice(0, 8).map(({ r, dd, probMove }) => `
+  return fold('moves', '🔔 Since yesterday', `<div class="tk-board">${moves.slice(0, 8).map(({ r, dd, probMove }) => `
     <div class="tk-row">
       <div class="tk-main">
         <div class="tk-label">${r.label}</div>
         <div class="tk-detail">${fmtKickoff(r.date)} · ${r.venue}${probMove ? ' · ' + probMove : ''}</div>
       </div>
       <span class="${dd >= 0 ? 'prob-delta-up' : 'prob-delta-down'}" style="font-size:13px;white-space:nowrap">${dd >= 0 ? '▲' : '▼'}${Math.abs(dd).toFixed(1)} demand</span>
-    </div>`).join('')}</div>`;
+    </div>`).join('')}</div>`,
+  'probability & demand moves vs the last daily snapshot — these reprice first');
 }
 
 // 1 — demand-ranked buy list over all future games
@@ -2669,8 +2829,7 @@ function hotTicketsHTML() {
   const rows = gameRows().slice().sort((a, b) => b.score - a.score);
   const max = rows[0] ? rows[0].score : 1;
   const med = medianVpd();
-  return `<h3 class="tk-h">🔥 Hot tickets <span class="tk-sub">demand = Σ P(appears) × fanbase weight, hosts ×1.5 at home · enter get-in $ to unlock value tags</span></h3>
-  <div class="tk-board">${rows.slice(0, 18).map((r, i) => `
+  return fold('hot', '🔥 Hot tickets', `<div class="tk-board">${rows.slice(0, 18).map((r, i) => `
     <div class="tk-row">
       <span class="tk-rank">${i + 1}</span>
       <div class="tk-main">
@@ -2681,7 +2840,8 @@ function hotTicketsHTML() {
       <div class="tk-bar"><div class="tk-bar-fill" style="width:${Math.round(r.score / max * 100)}%"></div></div>
       <span class="tk-score">${r.score.toFixed(1)}</span>
       <button class="tk-star${watchlist[r.key] ? ' on' : ''}" onclick="toggleWatch('${r.key}')" title="add to inventory">${watchlist[r.key] ? '★' : '☆'}</button>
-    </div>`).join('')}</div>`;
+    </div>`).join('')}</div>`,
+  'demand = Σ P(appears) × fanbase weight, hosts ×1.5 at home · enter get-in $ to unlock value tags');
 }
 
 // 2.5 — per-city scarcity, trend, and hold/sell lean
@@ -2703,8 +2863,7 @@ function cityBoardHTML() {
     else if (sig.cls === 'hold') c.holds++;
   }
   const list = Object.values(cities).sort((a, b) => (b.score / b.cap) - (a.score / a.cap));
-  return `<h3 class="tk-h">🏟 City board <span class="tk-sub">scarcity = remaining demand per 1k seats — big teams in small stadiums resell strongest</span></h3>
-  <div class="tk-explorer">${list.map(c => {
+  return fold('city', '🏟 City board', `<div class="tk-explorer">${list.map(c => {
     const lean = c.sells > c.holds + 1 ? { cls: 'sell', label: 'SELL LEAN' }
                : c.holds > c.sells + 1 ? { cls: 'hold', label: 'HOLD LEAN' }
                : { cls: 'neutral', label: 'MIXED' };
@@ -2719,15 +2878,15 @@ function cityBoardHTML() {
         <div><span class="tk-city-num">${avgP}</span><span class="tk-city-lbl">avg get-in $</span></div>
       </div>
     </div>`;
-  }).join('')}</div>`;
+  }).join('')}</div>`,
+  'scarcity = remaining demand per 1k seats — big teams in small stadiums resell strongest');
 }
 
 // 2 — per-match probability explorer
 function matchExplorerHTML() {
   const chips = [['r32','R32'],['r16','R16'],['qf','QF'],['sf','SF'],['fin','Final']];
   const defs = KO_ALL.filter(d => ROUND_KEY(d.id) === mc.round || (mc.round === 'fin' && (d.id === 'final' || d.id === 'third-place')));
-  return `<h3 class="tk-h">🎯 Who plays in each game?</h3>
-  <div class="live-filters" style="margin-bottom:12px">${chips.map(([k, l]) =>
+  return fold('explorer', '🎯 Who plays in each game?', `<div class="live-filters" style="margin-bottom:12px">${chips.map(([k, l]) =>
     `<button class="chip${mc.round === k ? ' active' : ''}" onclick="setTicketsRound('${k}')">${l}</button>`).join('')}</div>
   <div class="tk-explorer">${defs.map(def => {
     const probs = (mc.matchProbs[def.id] || []).slice(0, 6);
@@ -2745,7 +2904,7 @@ function matchExplorerHTML() {
         </div>`;
       }).join('')}
     </div>`;
-  }).join('')}</div>`;
+  }).join('')}</div>`);
 }
 
 // 3 — team round-reach matrix
@@ -2754,13 +2913,12 @@ function reachMatrixHTML() {
     .sort((a, b) => b.r.champ - a.r.champ || b.r.fin - a.r.fin || b.r.sf - a.r.sf || b.r.qf - a.r.qf || b.r.r16 - a.r.r16 || b.r.r32 - a.r.r32);
   const N = mc.runs;
   const cell = c => { const p = c / N; return `<td style="${p >= 0.5 ? 'color:var(--gold);font-weight:700' : p < 0.005 ? 'opacity:0.3' : ''}">${pct(p)}</td>`; };
-  return `<h3 class="tk-h">📈 How far does each team go?</h3>
-  <div class="tk-matrix-wrap"><table class="standings-table tk-matrix">
+  return fold('matrix', '📈 How far does each team go?', `<div class="tk-matrix-wrap"><table class="standings-table tk-matrix">
     <thead><tr><th>Team</th><th>R32</th><th>R16</th><th>QF</th><th>SF</th><th>Final</th><th>🏆 Champion</th></tr></thead>
     <tbody>${teams.map(({ t, r }) => `<tr>
       <td>${TEAMS[t].flag} ${t}</td>${cell(r.r32)}${cell(r.r16)}${cell(r.qf)}${cell(r.sf)}${cell(r.fin)}${cell(r.champ)}
     </tr>`).join('')}</tbody>
-  </table></div>`;
+  </table></div>`);
 }
 
 // 4 — movers vs the previous run
@@ -2770,9 +2928,8 @@ function moversHTML() {
     t, d: (mc.teamRounds[t].champ / mc.runs) - (mc.prevChamp[t] || 0),
   })).filter(m => Math.abs(m.d) >= 0.01).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, 6);
   if (!moves.length) return '';
-  return `<h3 class="tk-h">📊 Title-odds movers since last run</h3>
-  <div class="tk-movers">${moves.map(m =>
-    `<span class="tk-mover">${TEAMS[m.t].flag} ${m.t} <span class="${m.d > 0 ? 'prob-delta-up' : 'prob-delta-down'}">${m.d > 0 ? '▲' : '▼'}${Math.abs(m.d * 100).toFixed(1)}pt</span></span>`).join('')}</div>`;
+  return fold('movers', '📊 Title-odds movers since last run', `<div class="tk-movers">${moves.map(m =>
+    `<span class="tk-mover">${TEAMS[m.t].flag} ${m.t} <span class="${m.d > 0 ? 'prob-delta-up' : 'prob-delta-down'}">${m.d > 0 ? '▲' : '▼'}${Math.abs(m.d * 100).toFixed(1)}pt</span></span>`).join('')}</div>`);
 }
 
 // ─── SHARE / STATE ────────────────────────────────────────────
