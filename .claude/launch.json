@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "World Cup Bracket",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["server.py"],
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["-c", "cd /tmp/wc-bracket-preview && python3 server.py"],
       "port": 3000
     }
   ]
