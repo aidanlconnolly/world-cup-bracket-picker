@@ -401,6 +401,51 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px;
   background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px 16px;
 }
+/* predictor — group tables + flow */
+.pred-cta-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 14px;
+}
+.pred-cta-bar .pcb-prog { font-size: 13px; }
+.pred-cta-bar .pcb-prog b { color: var(--gold); }
+.pred-groups-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; }
+.pred-group-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; overflow: hidden; }
+.pred-group-card.done { border-color: rgba(46,204,113,0.45); }
+.pred-group-card.flash { animation: predflash 1.5s ease; }
+@keyframes predflash { 0%,100% { box-shadow: none; } 30% { box-shadow: 0 0 0 3px rgba(255,215,0,0.55); } }
+.pred-group-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; font-weight: 800; font-size: 13px; letter-spacing: .5px;
+  background: rgba(255,255,255,0.04); border-bottom: 1px solid var(--card-border);
+}
+.pred-group-head span { font-size: 11px; color: var(--muted); font-weight: 600; }
+.pred-group-card.done .pred-group-head span { color: #2ecc71; }
+.pred-group-body { display: grid; grid-template-columns: 1fr minmax(150px, 200px); gap: 0; }
+.pred-fixtures { display: flex; flex-direction: column; }
+.pred-fixtures .pred-row { border: none; border-bottom: 1px solid var(--card-border); border-radius: 0; background: transparent; padding: 8px 12px; gap: 8px; }
+.pred-fixtures .pred-when { width: 84px; }
+.pred-fixtures .pred-btn { padding: 5px 8px; font-size: 11.5px; }
+.pred-table-wrap { border-left: 1px solid var(--card-border); padding: 8px; display: flex; align-items: flex-start; }
+.pred-tbd-note, .pred-gate { font-size: 12px; color: var(--muted); padding: 14px; line-height: 1.5; }
+.pred-gate { background: var(--card-bg); border: 1px dashed var(--card-border); border-radius: 10px; text-align: center; }
+.pred-stand { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.pred-stand td { padding: 3px 5px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.pred-stand td:first-child { color: var(--muted); width: 14px; }
+.pred-stand td:nth-child(3) { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.pred-stand td:last-child { text-align: right; width: 22px; }
+.pred-stand tr.adv td { color: #fff; }
+.pred-stand tr.adv td:first-child { color: var(--gold); }
+.pred-stand tr.third td:first-child { color: #f0a030; }
+.pred-ko-list { display: flex; flex-direction: column; gap: 10px; }
+.pred-ko-card {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px;
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px;
+}
+.pred-ko-card.final-ko { border-color: var(--gold); }
+.pred-ko-when { font-size: 11px; color: var(--muted); width: 150px; flex-shrink: 0; line-height: 1.5; }
+.pred-ko-teams { display: flex; gap: 8px; align-items: center; flex: 1; flex-wrap: wrap; }
+.pred-ko-vs { color: var(--muted); font-size: 11px; }
 
 /* PUBLISH MODAL */
 #modal-overlay {
@@ -2434,20 +2479,96 @@ function scoreState(s, key) {
 }
 
 // ─── MATCH PREDICTOR ──────────────────────────────────────────
-// The other game: call every individual fixture before kickoff. Group games
-// are 1X2 (win/draw/win, +1 for the right result); knockout games are
-// winner-only with escalating points. Picks key off ESPN event ids, lock the
-// moment a match leaves the 'pre' state, and TBD knockout slots open up as
-// soon as the real teams are known.
+// A full end-to-end prediction, entered game-by-game. Group fixtures are 1X2
+// (win/draw/win, +1 each); each pick feeds a live standings table. Once all 12
+// group tables are filled, the knockout bracket is seeded from YOUR predicted
+// qualifiers (reusing the bracket's slot grammar via a state swap) and you pick
+// winners through the Final. Group games grade per real result; knockout games
+// grade by advancement against reality (PRED_PTS escalation), same as the
+// bracket's Phase 2.
 const PRED_PTS = { group:1, r32:2, r16:4, qf:8, sf:16, third:8, fin:32 };
 const PRED_STAGES = [['group','Groups'],['r32','R32'],['r16','R16'],['qf','QF'],['sf','SF'],['third','3rd'],['fin','Final']];
-let predictor = lsGet('wcPredictor', { picks: {} });
+const KO_COUNT = { r32:16, r16:8, qf:4, sf:2, third:1, fin:1 };
+const KO_DEFS = { r32:R32_DEF, r16:R16_DEF, qf:QF_DEF, sf:SF_DEF, third:[THIRD_DEF], fin:[FINAL_DEF] };
+let predictor = lsGet('wcPredictor', { picks:{}, ko:{}, finals:{ final:null, thirdPlace:null } });
 if (!predictor.picks) predictor.picks = {};
+if (!predictor.ko) predictor.ko = {};
+if (!predictor.finals) predictor.finals = { final:null, thirdPlace:null };
 let predFilter = 'group';
 
 function predStage(m) { return (m.round || '').startsWith('Group') ? 'group' : koRoundOf(m); }
 function predOutcome(m) { return m.home.winner ? m.home.name : m.away.winner ? m.away.name : 'DRAW'; }
 function predPickable(m) { return m.state === 'pre' && !m.home.tbd && !m.away.tbd; }
+
+// Run fn() with the global `state` temporarily pointed at a derived bracket so
+// the existing resolveSlot/assignThirds/getThirdPlaces machinery can seed the
+// predictor's knockouts. Synchronous only — restored in finally.
+function withState(ps, fn) { const prev = state; state = ps; try { return fn(); } finally { state = prev; } }
+
+// The six real group fixtures for group g (both teams in g, by kickoff).
+function groupFixtures(g) {
+  return (live.matches || []).filter(m =>
+    (m.round || '').startsWith('Group') && !m.home.tbd && !m.away.tbd &&
+    (TEAMS[m.home.name] || {}).group === g && (TEAMS[m.away.name] || {}).group === g)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+}
+// Outcome of a group fixture: reality if it's been played, else this picks-map's call.
+function groupOutcome(m, picks) { return m.state === 'post' ? predOutcome(m) : (picks[m.id] || null); }
+
+// Build a group's standings from picks + real results, or null until all 6 decided.
+function deriveGroupStandings(g, picks = predictor.picks) {
+  const fx = groupFixtures(g);
+  if (fx.length < 6) return null;
+  const stats = {}; GROUPS[g].forEach(t => stats[t] = { team:t, pts:0, w:0, d:0, l:0, gf:0, ga:0 });
+  let decided = 0;
+  for (const m of fx) {
+    const h = m.home.name, a = m.away.name;
+    if (!stats[h] || !stats[a]) return null;
+    const oc = groupOutcome(m, picks);
+    if (!oc) continue;
+    decided++;
+    if (m.state === 'post') {
+      const hg = parseInt(m.home.score) || 0, ag = parseInt(m.away.score) || 0;
+      stats[h].gf += hg; stats[h].ga += ag; stats[a].gf += ag; stats[a].ga += hg;
+    }
+    if (oc === 'DRAW') { stats[h].pts++; stats[a].pts++; stats[h].d++; stats[a].d++; }
+    else if (oc === h) { stats[h].pts += 3; stats[h].w++; stats[a].l++; }
+    else if (oc === a) { stats[a].pts += 3; stats[a].w++; stats[h].l++; }
+  }
+  if (decided < 6) return null;
+  const order = GROUPS[g].slice().sort((x, y) => {
+    const sx = stats[x], sy = stats[y];
+    if (sy.pts !== sx.pts) return sy.pts - sx.pts;
+    const gdx = sx.gf - sx.ga, gdy = sy.gf - sy.ga;
+    if (gdy !== gdx) return gdy - gdx;
+    if (sy.gf !== sx.gf) return sy.gf - sx.gf;
+    return (TEAMS[y]?.prob || 0) - (TEAMS[x]?.prob || 0);   // deterministic tiebreak (no predicted scores)
+  });
+  return order.map(t => stats[t]);
+}
+
+function predGroupsComplete(picks = predictor.picks) {
+  return Object.keys(GROUPS).every(g => deriveGroupStandings(g, picks));
+}
+
+// A bracket-shaped state derived from a predictor object, so the KO grammar runs.
+function predStateFrom(pd) {
+  const picks = pd.picks || {}, koIn = pd.ko || {}, finIn = pd.finals || {};
+  const ps = freshState(); ps.mode = 'pick'; ps.koFromReal = false;
+  for (const g of Object.keys(GROUPS)) {
+    const st = deriveGroupStandings(g, picks);
+    if (st) ps.groups[g] = { done:true, standings: st };
+  }
+  ps.ko = {};
+  for (const [k, v] of Object.entries(koIn)) {
+    if (v && validTeam(v.winner)) ps.ko[k] = { winner:v.winner, loser: validTeam(v.loser) ? v.loser : null, predicted:true };
+  }
+  const fin = f => f && validTeam(f.winner) ? { winner:f.winner, loser: validTeam(f.loser) ? f.loser : null, predicted:true } : null;
+  ps.finals = { final: fin(finIn.final), thirdPlace: fin(finIn.thirdPlace) };
+  ps.selectedThirds = withState(ps, () => getThirdPlaces().slice(0, 8).map(t => t.team));
+  return ps;
+}
+function predBracketState() { return predStateFrom(predictor); }
 
 function sanitizePredictorPicks(raw) {
   const out = {};
@@ -2465,62 +2586,181 @@ function setPredPick(eventId, val) {
   if (!m || !predPickable(m)) { showToast('That game is locked'); return; }
   if (predictor.picks[eventId] === val) delete predictor.picks[eventId];
   else predictor.picks[eventId] = val;
+  prunePredKO();                        // group change can shift qualifiers
   lsSet('wcPredictor', predictor);
   renderPredictor();
 }
 
-function scorePredictorPicks(picks) {
-  const out = { total:0, correct:0, graded:0, byStage:{ group:0, r32:0, r16:0, qf:0, sf:0, third:0, fin:0 } };
-  for (const m of live.matches || []) {
-    if (m.state !== 'post') continue;
-    const pick = picks[m.id];
-    if (!pick) continue;
-    out.graded++;
-    if (pick === predOutcome(m)) {
-      const st = predStage(m);
-      const pts = PRED_PTS[st] || 1;
-      out.total += pts;
-      out.byStage[st] += pts;
-      out.correct++;
-    }
+// Resolve a KO def's two teams under the current predicted bracket.
+function predKOTeams(def, ps) {
+  return [withState(ps, () => resolveMatchSlot(def, 's1')), withState(ps, () => resolveMatchSlot(def, 's2'))];
+}
+function predKODefOf(matchId) {
+  return matchId === 'final' ? FINAL_DEF : matchId === 'third-place' ? THIRD_DEF : ALL_KO.find(d => d.id === matchId);
+}
+function predKORec(matchId) {
+  return matchId === 'final' ? predictor.finals.final
+    : matchId === 'third-place' ? predictor.finals.thirdPlace : predictor.ko[matchId];
+}
+function predKOStore(matchId, rec) {
+  if (matchId === 'final') predictor.finals.final = rec;
+  else if (matchId === 'third-place') predictor.finals.thirdPlace = rec;
+  else if (rec) predictor.ko[matchId] = rec; else delete predictor.ko[matchId];
+}
+
+function setPredKO(matchId, team) {
+  const def = predKODefOf(matchId); if (!def) return;
+  const [t1, t2] = predKOTeams(def, predBracketState());
+  if (team !== t1 && team !== t2) { showToast('That matchup isn\'t set yet'); return; }
+  const cur = predKORec(matchId);
+  if (cur && cur.winner === team) predKOStore(matchId, null);   // toggle off
+  else predKOStore(matchId, { winner: team, loser: team === t1 ? t2 : t1, predicted: true });
+  prunePredKO();
+  lsSet('wcPredictor', predictor);
+  renderPredictor();
+}
+
+// Drop any KO/finals pick whose matchup no longer holds (a changed earlier pick
+// can swap who arrives in later slots). Iterate to a fixpoint so it cascades.
+function prunePredKO() {
+  for (let pass = 0; pass < 6; pass++) {
+    let changed = false;
+    const ps = predBracketState();
+    const check = (def, matchId) => {
+      const rec = predKORec(matchId); if (!rec) return;
+      const [t1, t2] = predKOTeams(def, ps);
+      if (rec.winner !== t1 && rec.winner !== t2) { predKOStore(matchId, null); changed = true; }
+      else { const loser = rec.winner === t1 ? t2 : t1; if (loser !== rec.loser) rec.loser = loser; }
+    };
+    for (const def of ALL_KO) check(def, def.id);
+    check(FINAL_DEF, 'final');
+    check(THIRD_DEF, 'third-place');
+    if (!changed) break;
   }
+}
+
+// Score a predictor object: group games per real result (+1), knockouts by
+// advancement vs reality (PRED_PTS escalation).
+function scorePredictor(pd) {
+  const picks = pd.picks || {}, key = buildAnswerKey();
+  const out = { total:0, group:0, ko:0, correct:0, graded:0, byStage:{ group:0, r32:0, r16:0, qf:0, sf:0, third:0, fin:0 } };
+  for (const m of live.matches || []) {
+    if (m.state !== 'post' || !(m.round || '').startsWith('Group')) continue;
+    const pick = picks[m.id]; if (!pick) continue;
+    out.graded++;
+    if (pick === predOutcome(m)) { out.group += PRED_PTS.group; out.byStage.group += PRED_PTS.group; out.correct++; }
+  }
+  const pr = predictedReached(predStateFrom(pd));
+  const add = (teams, realSet, pts, stage) => { for (const t of teams) if (realSet.has(t)) { out.ko += pts; out.byStage[stage] += pts; } };
+  add(pr.r16, key.reached.r16, PRED_PTS.r32, 'r32');
+  add(pr.qf,  key.reached.qf,  PRED_PTS.r16, 'r16');
+  add(pr.sf,  key.reached.sf,  PRED_PTS.qf,  'qf');
+  add(pr.fin, key.reached.fin, PRED_PTS.sf,  'sf');
+  if (pr.champ && key.champ && pr.champ === key.champ) { out.ko += PRED_PTS.fin; out.byStage.fin += PRED_PTS.fin; }
+  if (pr.third && key.third && pr.third === key.third) { out.ko += PRED_PTS.third; out.byStage.third += PRED_PTS.third; }
+  out.total = out.group + out.ko;
   return out;
+}
+function predPickCount() {
+  return Object.keys(predictor.picks).length + Object.keys(predictor.ko).length +
+    (predictor.finals.final ? 1 : 0) + (predictor.finals.thirdPlace ? 1 : 0);
 }
 
 function setPredFilter(f) { predFilter = f; renderPredictor(); }
 
-function predRowHTML(m) {
+// Jump to the first group still missing a pick and flag it.
+function gotoFirstMissing() {
+  for (const g of Object.keys(GROUPS)) {
+    if (deriveGroupStandings(g)) continue;
+    if (predFilter !== 'group') { predFilter = 'group'; renderPredictor(); }
+    const el = document.getElementById('predg-' + g);
+    if (el) { el.scrollIntoView({ behavior:'smooth', block:'center' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1500); }
+    const miss = groupFixtures(g).find(m => m.state === 'pre' && !predictor.picks[m.id]);
+    showToast(miss ? `Group ${g}: call ${miss.home.name} vs ${miss.away.name}` : `Group ${g} has a game still in play`);
+    return;
+  }
+  showToast('All groups in — predict the knockouts!');
+}
+
+function predFixtureRowHTML(m) {
   const pick = predictor.picks[m.id];
-  const stage = predStage(m);
   const pickable = predPickable(m);
   const q = s => String(s).replace(/'/g, "\\'");
   const btn = (val, label) =>
     `<button class="pred-btn${pick === val ? ' on' : ''}" ${pickable ? '' : 'disabled'}
       onclick="setPredPick('${m.id}','${q(val)}')">${label}</button>`;
-  const teamLbl = t => `${TEAMS[t.name]?.flag || ''} ${escapeHTML(t.name)}`;
-  let buttons;
-  if (m.home.tbd || m.away.tbd) {
-    buttons = `<span class="pred-result">matchup TBD — opens when the real teams are set</span>`;
-  } else if (stage === 'group') {
-    buttons = btn(m.home.name, teamLbl(m.home)) + btn('DRAW', '🤝 Draw') + btn(m.away.name, teamLbl(m.away));
-  } else {
-    buttons = btn(m.home.name, teamLbl(m.home) + ' win') + btn(m.away.name, teamLbl(m.away) + ' win');
-  }
+  const lbl = t => `${TEAMS[t.name]?.flag || ''} ${escapeHTML(t.name)}`;
+  const buttons = btn(m.home.name, lbl(m.home)) + btn('DRAW', '🤝') + btn(m.away.name, lbl(m.away));
   let tail = '';
   if (m.state === 'post') {
     const oc = predOutcome(m);
-    const res = oc === 'DRAW' ? `${m.home.score}–${m.away.score} draw` : `${TEAMS[oc]?.flag || ''} ${escapeHTML(oc)} won ${realScore(m)}`;
+    const res = oc === 'DRAW' ? `${m.home.score}–${m.away.score} draw` : `${TEAMS[oc]?.flag || ''} won ${realScore(m)}`;
     tail = `<span class="pred-result">${res}</span>` + (pick
-      ? (pick === oc ? `<span class="pred-earn win">+${PRED_PTS[stage]}</span>` : `<span class="pred-earn loss">✗ 0</span>`)
+      ? (pick === oc ? `<span class="pred-earn win">+${PRED_PTS.group}</span>` : `<span class="pred-earn loss">✗</span>`)
       : `<span class="pred-earn">—</span>`);
   } else if (m.state === 'in') {
-    tail = `<span class="pred-result">🔴 live — locked</span>`;
-  } else if (pickable && pick) {
-    tail = `<span class="pred-earn" style="color:var(--gold)">${PRED_PTS[stage]} pts on it</span>`;
+    tail = `<span class="pred-result">🔴 live</span>`;
   }
   return `<div class="pred-row">
-    <div class="pred-when">${fmtKickoff(m.date)}<br>${escapeHTML((m.venue || '').split(',')[0])}</div>
+    <div class="pred-when">${fmtKickoff(m.date)}</div>
     <div class="pred-pick-group">${buttons}</div>
+    ${tail}
+  </div>`;
+}
+
+function predStandTableHTML(st) {
+  return `<table class="pred-stand"><tbody>${st.map((s, i) => `
+    <tr class="${i < 2 ? 'adv' : i === 2 ? 'third' : ''}">
+      <td>${i + 1}</td>
+      <td>${TEAMS[s.team]?.flag || ''} ${escapeHTML(s.team)}</td>
+      <td>${s.w}-${s.d}-${s.l}</td>
+      <td><b>${s.pts}</b></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+function predGroupCardHTML(g) {
+  const fx = groupFixtures(g);
+  const st = deriveGroupStandings(g);
+  const picked = fx.filter(m => groupOutcome(m, predictor.picks)).length;
+  const table = st ? predStandTableHTML(st)
+    : `<div class="pred-tbd-note">Call all six games and the table — your top two plus best thirds — feeds the knockouts.</div>`;
+  return `<div class="pred-group-card${st ? ' done' : ''}" id="predg-${g}">
+    <div class="pred-group-head"><span style="color:inherit;font-weight:800">Group ${g}</span><span>${st ? '✓ table set' : picked + '/6 called'}</span></div>
+    <div class="pred-group-body">
+      <div class="pred-fixtures">${fx.length ? fx.map(predFixtureRowHTML).join('') : '<div class="pred-tbd-note">Loading fixtures…</div>'}</div>
+      <div class="pred-table-wrap">${table}</div>
+    </div></div>`;
+}
+
+function predKOCardHTML(def, ps, roundKey, key) {
+  const [t1, t2] = predKOTeams(def, ps);
+  const rec = predKORec(def.id);
+  const pick = rec ? rec.winner : null;
+  const pts = PRED_PTS[roundKey];
+  const isFinal = def.id === 'final';
+  const q = s => String(s).replace(/'/g, "\\'");
+  const btn = (team) => team
+    ? `<button class="pred-btn${pick === team ? ' on' : ''}" onclick="setPredKO('${def.id}','${q(team)}')">${TEAMS[team]?.flag || ''} ${escapeHTML(team)}</button>`
+    : `<button class="pred-btn" disabled>TBD</button>`;
+  // grade once reality knows who advanced out of this round
+  const realSet = roundKey === 'r32' ? key.reached.r16 : roundKey === 'r16' ? key.reached.qf
+    : roundKey === 'qf' ? key.reached.sf : roundKey === 'sf' ? key.reached.fin : null;
+  let tail = '';
+  if (pick) {
+    const advanced = roundKey === 'fin' ? (key.champ && pick === key.champ)
+      : roundKey === 'third' ? (key.third && pick === key.third)
+      : realSet ? realSet.has(pick) : false;
+    const graded = roundKey === 'fin' ? !!key.champ : roundKey === 'third' ? !!key.third
+      : realSet ? realSet.size > 0 || key.koPlayed > 0 : false;
+    tail = graded
+      ? (advanced ? `<span class="pred-earn win">+${pts}</span>` : `<span class="pred-earn loss">✗ 0</span>`)
+      : `<span class="pred-earn" style="color:var(--gold)">${pts} pts on it</span>`;
+  } else {
+    tail = `<span class="pred-result">${t1 && t2 ? `worth ${pts} pts` : 'awaiting the previous round'}</span>`;
+  }
+  return `<div class="pred-ko-card${isFinal ? ' final-ko' : ''}">
+    <div class="pred-ko-when">${isFinal ? '🏆 ' : def.id === 'third-place' ? '🥉 ' : ''}${fmtKickoff(def.date)}<br>${escapeHTML((def.venue || '').split(',')[0])}</div>
+    <div class="pred-ko-teams">${btn(t1)} <span class="pred-ko-vs">vs</span> ${btn(t2)}</div>
     ${tail}
   </div>`;
 }
@@ -2530,27 +2770,42 @@ function renderPredictor() {
   const summary = document.getElementById('pred-summary');
   const filters = document.getElementById('pred-filters');
   if (!list) return;
-  const ms = (live.matches || []).slice().sort((a, b) => new Date(a.date) - new Date(b.date));
-  if (!ms.length) {
+  if (!(live.matches || []).length) {
     list.innerHTML = `<p class="live-empty">${live.fullFetched ? 'Schedule unavailable — try ⟳ Refresh' : 'Loading schedule…'}</p>`;
     summary.innerHTML = ''; filters.innerHTML = '';
     return;
   }
-  const sc = scorePredictorPicks(predictor.picks);
-  const nPicks = Object.keys(predictor.picks).length;
+  const sc = scorePredictor(predictor);
+  const n = predPickCount();
+  const banked = Object.keys(GROUPS).filter(g => deriveGroupStandings(g)).length;
   summary.innerHTML = `<div class="pred-summary">
     <div class="sb-total"><span class="sb-total-num">${sc.total}</span><span class="sb-total-lbl">pts</span></div>
     <div class="sb-phases">${PRED_STAGES.map(([k, l]) =>
       `<span class="sb-pill">${l} <b>${sc.byStage[k]}</b></span>`).join('')}</div>
-    <span class="sb-note">${nPicks} pick${nPicks === 1 ? '' : 's'} made · ${sc.correct}/${sc.graded} graded right</span>
+    <span class="sb-note">${n} pick${n === 1 ? '' : 's'} made · ${sc.correct}/${sc.graded} group games right</span>
   </div>`;
-  const counts = {};
-  for (const m of ms) counts[predStage(m)] = (counts[predStage(m)] || 0) + 1;
   filters.innerHTML = PRED_STAGES.map(([k, l]) =>
-    `<button class="chip${predFilter === k ? ' active' : ''}" onclick="setPredFilter('${k}')">${l} (${counts[k] || 0})</button>`).join('');
-  const shown = ms.filter(m => predStage(m) === predFilter);
-  list.innerHTML = shown.length ? shown.map(predRowHTML).join('')
-    : '<p class="live-empty">No games in this round yet.</p>';
+    `<button class="chip${predFilter === k ? ' active' : ''}" onclick="setPredFilter('${k}')">${l} (${k === 'group' ? banked + '/12' : KO_COUNT[k]})</button>`).join('');
+
+  if (predFilter === 'group') {
+    const complete = banked === 12;
+    const cta = complete
+      ? `<button class="btn btn-gold" onclick="setPredFilter('r32')">Predict the knockouts →</button>`
+      : `<button class="btn" onclick="gotoFirstMissing()">${12 - banked} group${12 - banked === 1 ? '' : 's'} left — jump to next</button>`;
+    list.innerHTML = `<div class="pred-cta-bar">
+        <span class="pcb-prog"><b>${banked}/12</b> group tables predicted${complete ? ' — knockouts unlocked 🔓' : ''}</span>${cta}
+      </div>
+      <div class="pred-groups-grid">${Object.keys(GROUPS).map(predGroupCardHTML).join('')}</div>`;
+  } else {
+    if (banked < 12) {
+      list.innerHTML = `<div class="pred-gate">Finish all 12 group tables to seed the knockouts from your predicted qualifiers.<br>
+        <button class="btn btn-small btn-gold" style="margin-top:10px" onclick="gotoFirstMissing()">Jump to what's left (${12 - banked})</button></div>`;
+    } else {
+      const ps = predBracketState();
+      const key = buildAnswerKey();
+      list.innerHTML = `<div class="pred-ko-list">${KO_DEFS[predFilter].map(def => predKOCardHTML(def, ps, predFilter, key)).join('')}</div>`;
+    }
+  }
   document.getElementById('pred-meta').textContent = '';
 }
 
@@ -2566,9 +2821,10 @@ function openPublishModal(target = 'bracket', bracketId = null) {
   const sub = document.getElementById('publish-modal-sub');
   let prefillName = localStorage.getItem('wcPublishName') || '';
   if (target === 'predictor') {
-    const n = Object.keys(predictor.picks).length;
+    const n = predPickCount();
     if (!n) { showToast('Pick some matches first — every game is worth points'); return; }
-    sub.textContent = `${n} match pick${n > 1 ? 's' : ''} so far. Name them so friends can find you on the Predictor leaderboard.`;
+    const champ = predictor.finals.final ? predictor.finals.final.winner : null;
+    sub.textContent = `${n} pick${n > 1 ? 's' : ''} so far${champ ? ` — ${TEAMS[champ]?.flag || ''} ${champ} to win it` : ''}. Name them so friends can find you on the Predictor leaderboard.`;
   } else {
     const entry = bracketId ? myBrackets().find(e => e.id === bracketId) : null;
     if (bracketId && !entry) { showToast('Bracket not found'); return; }
@@ -2596,8 +2852,10 @@ async function submitPublish() {
   let payload;
   try {
     if (publishTarget === 'predictor') {
-      payload = { name, kind: 'predictor', hash: encodeHash({ predictor: true, picks: predictor.picks }),
-        champion: '', runnerUp: '', mode: 'pick' };
+      payload = { name, kind: 'predictor',
+        hash: encodeHash({ predictor: true, picks: predictor.picks, ko: predictor.ko, finals: predictor.finals }),
+        champion: (predictor.finals.final && predictor.finals.final.winner) || '',
+        runnerUp: (predictor.finals.final && predictor.finals.final.loser) || '', mode: 'pick' };
     } else {
       let src = state;
       if (publishBracketId && publishBracketId !== state.id) {
@@ -2787,8 +3045,11 @@ function predictorLeaderboardHTML(entries) {
   if (!entries.length) return `<p class="live-empty">No match-predictor picks published yet — make yours on the 🎯 Predictor tab.</p>`;
   const myName = (localStorage.getItem('wcPublishName') || '').toLowerCase();
   const rows = entries.map(({ b, payload }) => {
-    const picks = sanitizePredictorPicks(payload && payload.picks);
-    return { b, sc: scorePredictorPicks(picks), n: Object.keys(picks).length };
+    const pd = { picks: sanitizePredictorPicks(payload && payload.picks),
+      ko: (payload && payload.ko) || {}, finals: (payload && payload.finals) || {} };
+    const n = Object.keys(pd.picks).length + Object.keys(pd.ko).length +
+      (pd.finals.final ? 1 : 0) + (pd.finals.thirdPlace ? 1 : 0);
+    return { b, sc: scorePredictor(pd), n };
   }).sort((a, z) => z.sc.total - a.sc.total || (z.b.ts||0) - (a.b.ts||0));
   const anyGraded = rows.some(r => r.sc.graded > 0);
   return `<p class="lb-note" style="font-size:12px;color:var(--muted);margin:0 0 10px">${anyGraded
@@ -2810,6 +3071,10 @@ function predictorLeaderboardHTML(entries) {
 }
 
 function renderExplore() {
+  // Bank the bracket you're editing so it always appears under "My brackets"
+  // (saveState only fires on edits; landing here straight from a fresh load
+  // otherwise left the active bracket missing from its own list).
+  if (!viewing) { try { persistActive(); } catch {} }
   const meta = document.getElementById('explore-meta');
   const grid = document.getElementById('explore-grid');
   // say exactly which bracket the header button will publish

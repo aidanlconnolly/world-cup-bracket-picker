@@ -58,11 +58,13 @@ toggle (below).
 
 **Multi-bracket**: `state.id` (local-only — NOT in share hashes) keys an entry in
 `wcMyBrackets` (full-state snapshots, newest-edited first, cap 20). `saveState()` →
-`persistActive()` keeps the collection in sync on every edit; `switchToBracket(id)`
-swaps the active bracket for editing; `newBracket()` (the nav's ➕, formerly Reset)
-banks the current one and starts fresh; `deleteMyBracket(id)` resets to fresh if you
-delete the one being edited. Old hash-only `wcMyBrackets` entries migrate lazily in
-`myBrackets()`.
+`persistActive()` keeps the collection in sync on every edit; `renderExplore()` also
+calls it up front so the bracket you're editing always shows under **📝 My brackets**
+(saveState only fires on edits, so a fresh load otherwise left it missing from its own
+list); `switchToBracket(id)` swaps the active bracket for editing; `newBracket()` (the
+nav's ➕, formerly Reset) banks the current one and starts fresh; `deleteMyBracket(id)`
+resets to fresh if you delete the one being edited. Old hash-only `wcMyBrackets` entries
+migrate lazily in `myBrackets()`.
 
 Bracket slots resolve through a small grammar in `resolveSlot()`: `'1A'`/`'2B'`
 (group position), `'3rd:A/B/C/D/F'` (third-place slot, eligibility in `THIRD_SLOTS`),
@@ -92,16 +94,35 @@ inflates your own score. `renderScoreboard()` shows the live tally on the bracke
 
 ### Match Predictor (`#view-predictor` tab)
 
-The other game: call every individual fixture before kickoff. Picks live in
-`wcPredictor` (`{picks: {espnEventId: teamName|'DRAW'}}`), keyed off the ESPN ids in
-`live.matches`. Group games are 1X2 (+1 for the right result); knockouts are
-winner-only with `PRED_PTS` escalation (R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd +8 ·
-Final +32). `predPickable()` locks a pick the moment a match leaves `state:'pre'`;
-TBD knockout slots open when ESPN names the real teams. `scorePredictorPicks()`
-grades against finished matches (`predOutcome()` handles draws and post-pens
-winners). Published predictor entries go through the same `/api/brackets` store with
-`kind:'predictor'` and the picks encoded in `hash` (`{predictor:true, picks}`),
-sanitized by `sanitizePredictorPicks()` on read.
+The other game: a full end-to-end prediction entered **game-by-game**, with the
+knockouts seeded from YOUR predicted qualifiers (not the real field). State lives in
+`wcPredictor` = `{picks:{espnEventId: teamName|'DRAW'}, ko:{matchId:{winner,loser}},
+finals:{final, thirdPlace}}` — `picks` are the 1X2 group calls keyed off ESPN ids;
+`ko`/`finals` mirror the bracket's shape so the existing KO grammar can run.
+
+- **Group phase** (`predFilter==='group'`): 12 per-group cards, each the 6 real
+  fixtures (`groupFixtures(g)`) + a live standings table to the right.
+  `deriveGroupStandings(g, picks)` tallies W=3/D=1 from your picks (real results used
+  for already-played games via `groupOutcome()`; tiebreak pts→GD→GF→prob prior since
+  1X2 picks carry no score) and returns null until all 6 are decided. A CTA bar tracks
+  `n/12` tables; `gotoFirstMissing()` scrolls to + flags the next undecided group.
+- **Knockouts** gate until all 12 tables are set. `predBracketState()` (=
+  `predStateFrom(predictor)`) builds a real bracket `state` from the derived standings
+  + `ko`/`finals`, and `withState(ps, fn)` temporarily swaps the global `state` so
+  `resolveSlot`/`assignThirds`/`getThirdPlaces` seed the matchups from your predicted
+  qualifiers. `setPredKO()` stores `{winner,loser}` and `prunePredKO()` cascades —
+  re-deciding a group or earlier KO drops any now-impossible downstream pick.
+- **Scoring** (`scorePredictor(pd)`): group games grade per real finished match
+  (+1 each, `PRED_PTS.group`); knockouts grade by **advancement** vs reality
+  (`predictedReached(predStateFrom(pd))` ∩ `buildAnswerKey().reached`) with `PRED_PTS`
+  escalation (R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd +8 · Final +32) — same model as
+  the bracket's Phase 2, so predicted matchups that never happen still score on who you
+  sent through. `predPickable()` locks group picks at kickoff.
+
+Published predictor entries go through `/api/brackets` with `kind:'predictor'`, the
+full `{predictor:true, picks, ko, finals}` encoded in `hash` (champion = your final
+winner), sanitized on read by `sanitizePredictorPicks()` + `predStateFrom()`'s
+`validTeam` guards.
 
 ### Share links, persistence, and the sanitizer coupling
 
