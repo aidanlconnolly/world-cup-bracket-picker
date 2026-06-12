@@ -69,10 +69,19 @@ class handler(BaseHTTPRequestHandler):
         if not name:
             return self._respond({'error': 'invalid bracket'}, 400)
 
-        # {"name": ..., "remove": true} unpublishes that name (no auth — friend-group toy)
+        # one entry per (name, kind): a person can hold a bracket AND predictor picks
+        kind = 'predictor' if data.get('kind') == 'predictor' else 'bracket'
+        def same(b):
+            return b.get('name', '').lower() == name.lower() and b.get('kind', 'bracket') == kind
+
+        # {"name": ..., "remove": true} unpublishes (no auth — friend-group toy);
+        # with "kind" it removes just that kind, legacy removes wipe the whole name
         if data.get('remove'):
             try:
-                remaining = [b for b in load_brackets() if b.get('name', '').lower() != name.lower()]
+                if 'kind' in data:
+                    remaining = [b for b in load_brackets() if not same(b)]
+                else:
+                    remaining = [b for b in load_brackets() if b.get('name', '').lower() != name.lower()]
                 kv_command('SET', KEY, json.dumps(remaining))
                 return self._respond({'ok': True, 'removed': name})
             except Exception:
@@ -85,14 +94,15 @@ class handler(BaseHTTPRequestHandler):
         entry = {
             'id': f'{int(time.time()*1000)}-{secrets.token_hex(3)}',
             'name': name,
+            'kind': kind,
             'champion': str(data.get('champion', ''))[:40],
             'runnerUp': str(data.get('runnerUp', ''))[:40],
-            'mode': 'ai' if data.get('mode') == 'ai' else 'pick',
+            'mode': 'pick',
             'hash': bracket_hash,
             'ts': int(time.time() * 1000),
         }
         try:
-            lst = [b for b in load_brackets() if b.get('name', '').lower() != name.lower()]
+            lst = [b for b in load_brackets() if not same(b)]
             lst.insert(0, entry)
             kv_command('SET', KEY, json.dumps(lst[:MAX_BRACKETS]))
             self._respond({'ok': True, 'id': entry['id']})

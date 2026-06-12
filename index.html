@@ -284,7 +284,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 
 /* SCOREBOARD + phase headers */
 .scoreboard {
-  max-width: 1100px; margin: 16px auto 0; padding: 14px 18px;
+  max-width: 1100px; margin: 16px 20px 0; padding: 14px 18px;
   background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px;
   display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
 }
@@ -298,20 +298,19 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 }
 .sb-pill b { color: var(--gold); font-size: 15px; }
 .sb-note { font-size: 11px; color: var(--muted); margin-left: auto; }
-.phase-header {
-  max-width: 1100px; margin: 30px auto 0; display: flex; align-items: center;
-  gap: 12px; flex-wrap: wrap; padding: 0 4px;
-}
+.phase-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.phase-header::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.1); order: 5; min-width: 40px; }
 .phase-tag {
   font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px;
-  color: #0b0b0b; background: var(--gold); border-radius: 6px; padding: 3px 9px;
+  color: #0b0b0b; background: var(--gold); border-radius: 6px; padding: 3px 9px; flex-shrink: 0;
 }
-.phase-header h2 { margin: 0; border: none; padding: 0; }
-.phase-score { font-size: 13px; color: var(--muted); }
+.phase-header h2 { margin: 0; }
+.phase-header h2::after { display: none; }
+.phase-score { font-size: 13px; color: var(--muted); white-space: nowrap; }
 .phase-score b { color: var(--gold); }
-.phase-header .btn { margin-left: auto; }
+.phase-header .btn { order: 10; margin-left: 0; }
 .ko-seed-note {
-  max-width: 1100px; margin: 8px auto 0; font-size: 12px; color: var(--muted);
+  max-width: 1100px; margin: 0 0 14px; font-size: 12px; color: var(--muted);
   background: rgba(74,163,255,0.08); border: 1px solid rgba(74,163,255,0.25);
   border-radius: 9px; padding: 8px 12px;
 }
@@ -339,6 +338,48 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 .lb-score-num { font-size: 22px; font-weight: 800; color: var(--gold); line-height: 1; }
 .lb-score-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; }
 .lb-champ { font-size: 22px; }
+
+/* MY BRACKETS (editable, on Global tab) */
+.mybr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-bottom: 26px; }
+.mybr-card {
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 11px;
+  padding: 12px 14px; cursor: pointer; transition: border-color 0.15s;
+}
+.mybr-card:hover { border-color: var(--gold); }
+.mybr-card.active { border-color: var(--gold); box-shadow: 0 0 14px var(--gold-glow); }
+.mybr-name { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.mybr-sub { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+.mybr-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.mybr-pts { margin-left: auto; font-size: 15px; font-weight: 800; color: var(--gold); }
+.mybr-badge { font-size: 9px; font-weight: 700; color: var(--gold); border: 1px solid var(--gold); border-radius: 4px; padding: 1px 5px; }
+.btn-small { padding: 4px 10px; font-size: 11.5px; }
+.gb-h { font-size: 16px; font-weight: 700; margin: 4px 0 12px; display: flex; align-items: center; gap: 10px; }
+.gb-h .tk-sub { font-weight: 400; }
+.gb-h::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.1); }
+
+/* MATCH PREDICTOR */
+.pred-list { display: flex; flex-direction: column; gap: 8px; }
+.pred-row {
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px; flex-wrap: wrap;
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px;
+}
+.pred-when { font-size: 11px; color: var(--muted); width: 150px; flex-shrink: 0; line-height: 1.5; }
+.pred-pick-group { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex: 1; }
+.pred-btn {
+  padding: 7px 12px; border-radius: 8px; font-size: 12.5px; cursor: pointer;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); color: var(--text);
+}
+.pred-btn:hover:not(:disabled) { border-color: var(--gold); }
+.pred-btn.on { background: rgba(255,215,0,0.16); border-color: var(--gold); color: var(--gold); font-weight: 700; }
+.pred-btn:disabled { opacity: 0.45; cursor: default; }
+.pred-result { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.pred-earn { font-size: 13px; font-weight: 800; min-width: 38px; text-align: right; }
+.pred-earn.win { color: #2ecc71; }
+.pred-earn.loss { color: #ff6b6b; }
+.pred-summary {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px;
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px 16px;
+}
 
 /* PUBLISH MODAL */
 #modal-overlay {
@@ -600,6 +641,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
   <div class="tab-toggle">
     <button id="tab-btn-bracket" class="active" onclick="setTab('bracket')">Bracket</button>
     <button id="tab-btn-live" onclick="setTab('live')">Matches <span id="live-nav-dot" class="live-nav-dot" style="display:none"></span></button>
+    <button id="tab-btn-predictor" onclick="setTab('predictor')">🎯 Predictor</button>
     <button id="tab-btn-explore" onclick="setTab('explore')">🌍 Global Brackets</button>
     <button id="tab-btn-tickets" onclick="setTab('tickets')">🎟 Tickets Analysis</button>
   </div>
@@ -682,15 +724,33 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 </section>
 </div><!-- /view-live -->
 
+<div id="view-predictor" style="display:none">
+<section id="predictor-section">
+  <h2>🎯 Match Predictor</h2>
+  <div class="live-controls">
+    <span style="font-size:13px;color:var(--muted)">Call every game before kickoff — Group +1 · R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd place +8 · Final +32. Picks lock at kickoff.</span>
+    <span class="live-updated" id="pred-meta"></span>
+    <button class="btn btn-gold" onclick="openPublishModal('predictor')">🌍 Publish picks</button>
+    <button class="btn" onclick="refreshLive(true).then(renderPredictor)">⟳ Refresh</button>
+  </div>
+  <div id="pred-summary"></div>
+  <div class="live-filters" id="pred-filters" style="margin-bottom:12px"></div>
+  <div id="pred-list" class="pred-list"><p class="live-empty">Loading schedule…</p></div>
+</section>
+</div><!-- /view-predictor -->
+
 <div id="view-explore" style="display:none">
 <section id="explore-section">
   <h2>🌍 Global Brackets</h2>
   <div class="live-controls">
-    <span style="font-size:13px;color:var(--muted)">Everyone's predictions, ranked by score against the real results — publish yours to join the leaderboard</span>
+    <span style="font-size:13px;color:var(--muted)">Your brackets are editable below — everyone else's are read-only, ranked by score against the real results</span>
     <span class="live-updated" id="explore-meta"></span>
     <button class="btn btn-gold" onclick="openPublishModal()">🌍 Publish my bracket</button>
     <button class="btn" onclick="refreshExplore()">⟳ Refresh</button>
   </div>
+  <div id="my-brackets"></div>
+  <div class="gb-h" id="gb-lb-head">🌍 Leaderboard <span class="tk-sub">read-only — tap any entry to view their picks</span></div>
+  <div class="gb-tabs" id="gb-games"></div>
   <div class="gb-tabs" id="gb-tabs"></div>
   <div id="explore-grid"><p class="live-empty">Loading brackets…</p></div>
 </section>
@@ -868,6 +928,11 @@ const THIRD_SLOTS = {
   'r32-13': ['E','F','G','I','J'],
   'r32-16': ['D','E','I','J','L'],
 };
+
+// localStorage helpers — defined up top because several modules read their
+// stores at script-evaluation time (predictor picks, fold state, watchlist).
+const lsGet = (k, fb) => { try { return JSON.parse(localStorage.getItem(k)) ?? fb; } catch { return fb; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
 // ─── STATE ────────────────────────────────────────────────────
 let state = {
@@ -1355,27 +1420,85 @@ function isMatchDone(matchId) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+function newBracketId() { return 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 function freshState() {
-  return { mode:'pick', groups:{}, picks:{}, ko:{}, finals:{ final:null, thirdPlace:null },
-    awards:null, selectedThirds:[], thirdAssign:null, koFromReal:false, name:'' };
+  return { mode:'pick', id:newBracketId(), name:'', groups:{}, picks:{}, ko:{},
+    finals:{ final:null, thirdPlace:null }, awards:null, selectedThirds:[],
+    thirdAssign:null, koFromReal:false };
 }
 
-// ─── NEW BRACKET ──────────────────────────────────────────────
-// "Reset" now banks the current bracket into your local collection (shown on
-// the Global Brackets tab under "My brackets") and starts a fresh one, so you
-// can keep several entries — e.g. one per friend-group pool.
+// ─── MY BRACKETS (multi-bracket, editable) ────────────────────
+// Every bracket is a first-class local entity: `state.id` keys an entry in
+// `wcMyBrackets` (full state snapshots) that saveState() keeps in sync, so you
+// can hold several brackets, switch between them, and keep editing — all
+// surfaced on the Global Brackets tab.
 function bracketHasPicks(s = state) {
   return Object.keys(s.groups || {}).length > 0 || Object.keys(s.ko || {}).length > 0
     || !!(s.finals && s.finals.final);
 }
+
+function myBrackets() {
+  const raw = lsGet('wcMyBrackets', []);
+  let changed = false;
+  const list = raw.map(e => {
+    if (e && e.state) return e;
+    // migrate pre-multi-bracket entries that stored only a share hash
+    changed = true;
+    let st = null;
+    try { st = sanitizeBracketState(decodeHash(e.hash)); } catch {}
+    if (!st) return null;
+    st.id = 'b' + (e.ts || Date.now());
+    st.name = e.name || '';
+    return { id: st.id, name: e.name || 'My bracket', ts: e.ts || Date.now(), state: st };
+  }).filter(Boolean);
+  if (changed) lsSet('wcMyBrackets', list);
+  return list;
+}
+
+// Write the active bracket into the collection (newest-edited first, cap 20).
+function persistActive() {
+  if (!state.id) state.id = newBracketId();
+  if (!bracketHasPicks()) return;   // never bank empty brackets
+  const entry = { id: state.id, name: state.name || 'My bracket', ts: Date.now(),
+    state: JSON.parse(JSON.stringify(state)) };
+  const rest = myBrackets().filter(e => e.id !== state.id);
+  lsSet('wcMyBrackets', [entry, ...rest].slice(0, 20));
+}
+
+function switchToBracket(id) {
+  if (viewing) exitViewing();
+  if (id === state.id) { setTab('bracket'); window.scrollTo({ top: 0 }); return; }
+  persistActive();
+  const e = myBrackets().find(b => b.id === id);
+  if (!e) { showToast('Bracket not found'); return; }
+  state = JSON.parse(JSON.stringify(e.state));
+  state.id = e.id;
+  if (!state.selectedThirds) state.selectedThirds = [];
+  pickState = {};
+  saveState();
+  setTab('bracket');
+  renderAll();
+  window.scrollTo({ top: 0 });
+  showToast(`✏️ Editing "${e.name}"`);
+}
+
+function deleteMyBracket(id, ev) {
+  if (ev) ev.stopPropagation();
+  lsSet('wcMyBrackets', myBrackets().filter(e => e.id !== id));
+  if (id === state.id) { state = freshState(); pickState = {}; saveState(); renderAll(); }
+  renderExplore();
+  showToast('Bracket deleted');
+}
+
+// "Reset" became New Bracket: bank the current one, start fresh.
 function newBracket() {
   if (viewing) { exitViewing(); return; }
-  if (bracketHasPicks()) saveMyBracket(state);
+  persistActive();
   state = freshState();
   pickState = {};
   saveState();
   renderAll();
-  showToast('Fresh bracket started — your previous one is saved under 🌍 Global Brackets');
+  showToast('Fresh bracket started — your saved brackets live on 🌍 Global Brackets');
 }
 
 // ─── RENDER GROUPS ────────────────────────────────────────────
@@ -1740,7 +1863,7 @@ let live = {
 
 function setTab(t) {
   activeTab = t;
-  for (const k of ['bracket', 'live', 'explore', 'tickets']) {
+  for (const k of ['bracket', 'live', 'predictor', 'explore', 'tickets']) {
     document.getElementById('view-' + k).style.display = t === k ? '' : 'none';
     document.getElementById('tab-btn-' + k).classList.toggle('active', t === k);
   }
@@ -1752,6 +1875,10 @@ function setTab(t) {
     startLivePoll();
   } else {
     stopLivePoll();
+  }
+  if (t === 'predictor') {
+    renderPredictor();
+    if (!live.fullFetched) refreshLive(true).then(renderPredictor);
   }
   if (t === 'explore' && !explore.fetched) refreshExplore();
   if (t === 'tickets' && !mc.runs) computeTickets();
@@ -2285,16 +2412,149 @@ function scoreState(s, key) {
   return out;
 }
 
+// ─── MATCH PREDICTOR ──────────────────────────────────────────
+// The other game: call every individual fixture before kickoff. Group games
+// are 1X2 (win/draw/win, +1 for the right result); knockout games are
+// winner-only with escalating points. Picks key off ESPN event ids, lock the
+// moment a match leaves the 'pre' state, and TBD knockout slots open up as
+// soon as the real teams are known.
+const PRED_PTS = { group:1, r32:2, r16:4, qf:8, sf:16, third:8, fin:32 };
+const PRED_STAGES = [['group','Groups'],['r32','R32'],['r16','R16'],['qf','QF'],['sf','SF'],['third','3rd'],['fin','Final']];
+let predictor = lsGet('wcPredictor', { picks: {} });
+if (!predictor.picks) predictor.picks = {};
+let predFilter = 'group';
+
+function predStage(m) { return (m.round || '').startsWith('Group') ? 'group' : koRoundOf(m); }
+function predOutcome(m) { return m.home.winner ? m.home.name : m.away.winner ? m.away.name : 'DRAW'; }
+function predPickable(m) { return m.state === 'pre' && !m.home.tbd && !m.away.tbd; }
+
+function sanitizePredictorPicks(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [k, v] of Object.entries(raw)) {
+    if (!/^\d{1,14}$/.test(String(k))) continue;
+    if (v === 'DRAW' || validTeam(v)) out[k] = v;
+    if (Object.keys(out).length >= 150) break;
+  }
+  return out;
+}
+
+function setPredPick(eventId, val) {
+  const m = (live.matches || []).find(x => String(x.id) === String(eventId));
+  if (!m || !predPickable(m)) { showToast('That game is locked'); return; }
+  if (predictor.picks[eventId] === val) delete predictor.picks[eventId];
+  else predictor.picks[eventId] = val;
+  lsSet('wcPredictor', predictor);
+  renderPredictor();
+}
+
+function scorePredictorPicks(picks) {
+  const out = { total:0, correct:0, graded:0, byStage:{ group:0, r32:0, r16:0, qf:0, sf:0, third:0, fin:0 } };
+  for (const m of live.matches || []) {
+    if (m.state !== 'post') continue;
+    const pick = picks[m.id];
+    if (!pick) continue;
+    out.graded++;
+    if (pick === predOutcome(m)) {
+      const st = predStage(m);
+      const pts = PRED_PTS[st] || 1;
+      out.total += pts;
+      out.byStage[st] += pts;
+      out.correct++;
+    }
+  }
+  return out;
+}
+
+function setPredFilter(f) { predFilter = f; renderPredictor(); }
+
+function predRowHTML(m) {
+  const pick = predictor.picks[m.id];
+  const stage = predStage(m);
+  const pickable = predPickable(m);
+  const q = s => String(s).replace(/'/g, "\\'");
+  const btn = (val, label) =>
+    `<button class="pred-btn${pick === val ? ' on' : ''}" ${pickable ? '' : 'disabled'}
+      onclick="setPredPick('${m.id}','${q(val)}')">${label}</button>`;
+  const teamLbl = t => `${TEAMS[t.name]?.flag || ''} ${escapeHTML(t.name)}`;
+  let buttons;
+  if (m.home.tbd || m.away.tbd) {
+    buttons = `<span class="pred-result">matchup TBD — opens when the real teams are set</span>`;
+  } else if (stage === 'group') {
+    buttons = btn(m.home.name, teamLbl(m.home)) + btn('DRAW', '🤝 Draw') + btn(m.away.name, teamLbl(m.away));
+  } else {
+    buttons = btn(m.home.name, teamLbl(m.home) + ' win') + btn(m.away.name, teamLbl(m.away) + ' win');
+  }
+  let tail = '';
+  if (m.state === 'post') {
+    const oc = predOutcome(m);
+    const res = oc === 'DRAW' ? `${m.home.score}–${m.away.score} draw` : `${TEAMS[oc]?.flag || ''} ${escapeHTML(oc)} won ${realScore(m)}`;
+    tail = `<span class="pred-result">${res}</span>` + (pick
+      ? (pick === oc ? `<span class="pred-earn win">+${PRED_PTS[stage]}</span>` : `<span class="pred-earn loss">✗ 0</span>`)
+      : `<span class="pred-earn">—</span>`);
+  } else if (m.state === 'in') {
+    tail = `<span class="pred-result">🔴 live — locked</span>`;
+  } else if (pickable && pick) {
+    tail = `<span class="pred-earn" style="color:var(--gold)">${PRED_PTS[stage]} pts on it</span>`;
+  }
+  return `<div class="pred-row">
+    <div class="pred-when">${fmtKickoff(m.date)}<br>${escapeHTML((m.venue || '').split(',')[0])}</div>
+    <div class="pred-pick-group">${buttons}</div>
+    ${tail}
+  </div>`;
+}
+
+function renderPredictor() {
+  const list = document.getElementById('pred-list');
+  const summary = document.getElementById('pred-summary');
+  const filters = document.getElementById('pred-filters');
+  if (!list) return;
+  const ms = (live.matches || []).slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+  if (!ms.length) {
+    list.innerHTML = `<p class="live-empty">${live.fullFetched ? 'Schedule unavailable — try ⟳ Refresh' : 'Loading schedule…'}</p>`;
+    summary.innerHTML = ''; filters.innerHTML = '';
+    return;
+  }
+  const sc = scorePredictorPicks(predictor.picks);
+  const nPicks = Object.keys(predictor.picks).length;
+  summary.innerHTML = `<div class="pred-summary">
+    <div class="sb-total"><span class="sb-total-num">${sc.total}</span><span class="sb-total-lbl">pts</span></div>
+    <div class="sb-phases">${PRED_STAGES.map(([k, l]) =>
+      `<span class="sb-pill">${l} <b>${sc.byStage[k]}</b></span>`).join('')}</div>
+    <span class="sb-note">${nPicks} pick${nPicks === 1 ? '' : 's'} made · ${sc.correct}/${sc.graded} graded right</span>
+  </div>`;
+  const counts = {};
+  for (const m of ms) counts[predStage(m)] = (counts[predStage(m)] || 0) + 1;
+  filters.innerHTML = PRED_STAGES.map(([k, l]) =>
+    `<button class="chip${predFilter === k ? ' active' : ''}" onclick="setPredFilter('${k}')">${l} (${counts[k] || 0})</button>`).join('');
+  const shown = ms.filter(m => predStage(m) === predFilter);
+  list.innerHTML = shown.length ? shown.map(predRowHTML).join('')
+    : '<p class="live-empty">No games in this round yet.</p>';
+  document.getElementById('pred-meta').textContent = '';
+}
+
 // ─── PUBLISH (inline modal — robust on mobile, no prompt()) ───
-function openPublishModal() {
-  if (viewing) { showToast(`You're viewing ${viewing.name}'s bracket — go back to yours first`); return; }
-  if (!bracketHasPicks()) { showToast('Make some picks first — fill a group or the bracket, then publish'); return; }
+// One modal, two targets: 'bracket' publishes the active bracket, 'predictor'
+// publishes your match-by-match picks. The server dedupes by (name, kind) so
+// one name can hold both.
+let publishTarget = 'bracket';
+function openPublishModal(target = 'bracket') {
+  publishTarget = target;
+  const sub = document.getElementById('publish-modal-sub');
+  if (target === 'predictor') {
+    const n = Object.keys(predictor.picks).length;
+    if (!n) { showToast('Pick some matches first — every game is worth points'); return; }
+    sub.textContent = `${n} match pick${n > 1 ? 's' : ''} so far. Name them so friends can find you on the Predictor leaderboard.`;
+  } else {
+    if (viewing) { showToast(`You're viewing ${viewing.name}'s bracket — go back to yours first`); return; }
+    if (!bracketHasPicks()) { showToast('Make some picks first — fill a group or the bracket, then publish'); return; }
+    const champ = state.finals.final ? state.finals.final.winner : null;
+    sub.textContent = champ
+      ? `Champion: ${TEAMS[champ]?.flag||''} ${champ}. Name it so friends can find you on the leaderboard.`
+      : 'Group-stage picks publish fine — you can finish the knockouts and re-publish later.';
+  }
   const input = document.getElementById('publish-name');
-  input.value = state.name || localStorage.getItem('wcPublishName') || '';
-  const champ = state.finals.final ? state.finals.final.winner : null;
-  document.getElementById('publish-modal-sub').textContent = champ
-    ? `Champion: ${TEAMS[champ]?.flag||''} ${champ}. Name it so friends can find you on the leaderboard.`
-    : 'Group-stage picks publish fine — you can finish the knockouts and re-publish later.';
+  input.value = (publishTarget === 'bracket' && state.name) || localStorage.getItem('wcPublishName') || '';
   document.getElementById('modal-overlay').classList.add('show');
   setTimeout(() => input.focus(), 50);
 }
@@ -2304,18 +2564,20 @@ async function submitPublish() {
   const name = (document.getElementById('publish-name').value || '').trim();
   if (!name) { showToast('Enter a name to publish under'); return; }
   try { localStorage.setItem('wcPublishName', name); } catch {}
-  state.name = name;
-  saveMyBracket(state);  // keep a local copy too
   let payload;
   try {
-    payload = {
-      name,
-      hash: encodeHash(stripStateForShare()),
-      champion: (state.finals.final && state.finals.final.winner) || '',
-      runnerUp: (state.finals.final && state.finals.final.loser) || '',
-      mode: 'pick',
-    };
-  } catch { showToast('Could not encode this bracket — try again'); return; }
+    if (publishTarget === 'predictor') {
+      payload = { name, kind: 'predictor', hash: encodeHash({ predictor: true, picks: predictor.picks }),
+        champion: '', runnerUp: '', mode: 'pick' };
+    } else {
+      state.name = name;
+      persistActive();
+      payload = { name, kind: 'bracket', hash: encodeHash(stripStateForShare()),
+        champion: (state.finals.final && state.finals.final.winner) || '',
+        runnerUp: (state.finals.final && state.finals.final.loser) || '',
+        mode: 'pick' };
+    }
+  } catch { showToast('Could not encode the picks — try again'); return; }
   closePublishModal();
   showToast('Publishing…');
   try {
@@ -2326,37 +2588,21 @@ async function submitPublish() {
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.ok) throw new Error(d.error || 'rejected');
     explore.fetched = false;
-    saveState();
+    if (publishTarget === 'bracket') saveState();
+    gbGame = publishTarget === 'predictor' ? 'predictor' : 'brackets';
     showToast('Published! 🌍 Opening Global Brackets…');
     setTab('explore');
     refreshExplore();
   } catch (e) {
-    showToast('Could not publish — storage unavailable. Your bracket is saved locally.');
+    showToast('Could not publish — storage unavailable. Your picks are saved locally.');
   }
 }
 
-// ─── MY BRACKETS (local collection shown on Global Brackets) ──
-function getMyBrackets() { return lsGet('wcMyBrackets', []); }
-function saveMyBracket(s) {
-  const list = getMyBrackets();
-  const slim = stripStateForShare(s);
-  const entry = { name: s.name || 'My bracket', ts: Date.now(),
-    champion: (s.finals && s.finals.final && s.finals.final.winner) || '',
-    runnerUp: (s.finals && s.finals.final && s.finals.final.loser) || '',
-    hash: encodeHash(slim) };
-  // de-dupe by name (newest wins), cap 20
-  const rest = list.filter(b => (b.name||'').toLowerCase() !== entry.name.toLowerCase());
-  rest.unshift(entry);
-  lsSet('wcMyBrackets', rest.slice(0, 20));
-}
-function deleteMyBracket(ts) {
-  lsSet('wcMyBrackets', getMyBrackets().filter(b => b.ts !== ts));
-  renderExplore();
-}
-
-// ─── GLOBAL BRACKETS (leaderboard) ───────────────────────────
-let gbTab = 'total';  // total | group | ko
+// ─── GLOBAL BRACKETS (my editable brackets + read-only leaderboards) ──
+let gbGame = 'brackets';   // brackets | predictor
+let gbTab = 'total';       // total | group | ko (bracket leaderboard sort)
 function setGbTab(t) { gbTab = t; renderExplore(); }
+function setGbGame(g) { gbGame = g; renderExplore(); }
 
 async function refreshExplore() {
   if (explore.loading) return;
@@ -2376,65 +2622,119 @@ async function refreshExplore() {
   renderExplore();
 }
 
-function scoredEntries() {
-  const key = buildAnswerKey();
-  const live_ = key.groupsDecided > 0 || key.koPlayed > 0;
-  const decode = b => { try { return sanitizeBracketState(decodeHash(b.hash)); } catch { return null; } };
-  const mineHashes = new Set(getMyBrackets().map(b => b.hash));
-  // published entries first; flag the ones that are also mine. Then add any of
-  // my local brackets that were never published, so unpublished drafts still show.
-  const published = explore.list.map(b => ({ ...b, mine: mineHashes.has(b.hash) }));
-  const publishedHashes = new Set(explore.list.map(b => b.hash));
-  const localOnly = getMyBrackets().filter(b => !publishedHashes.has(b.hash)).map(b => ({ ...b, mine:true, localOnly:true }));
-  const all = [...published, ...localOnly];
-  const rows = all.map(b => {
-    const s = decode(b);
-    const sc = s ? scoreState(s, key) : { total:0, group:0, ko:0 };
-    return { b, s, sc };
-  });
-  const sortKey = gbTab === 'group' ? 'group' : gbTab === 'ko' ? 'ko' : 'total';
-  rows.sort((a, z) => z.sc[sortKey] - a.sc[sortKey] || (z.b.ts||0) - (a.b.ts||0));
-  return { rows, live: live_, key, sortKey };
+// Split published entries by kind; predictor payloads are detected by content
+// too, in case an old client published one without the kind field.
+function splitEntries() {
+  const brackets = [], predictors = [];
+  for (const b of explore.list) {
+    let payload = null;
+    try { payload = decodeHash(b.hash); } catch {}
+    if (b.kind === 'predictor' || (payload && payload.predictor)) predictors.push({ b, payload });
+    else brackets.push({ b, payload });
+  }
+  return { brackets, predictors };
 }
 
-function renderExplore() {
-  const meta = document.getElementById('explore-meta');
-  const tabsEl = document.getElementById('gb-tabs');
-  const grid = document.getElementById('explore-grid');
-  const tabs = [['total','🏆 Overall'],['group','Phase 1 · Groups'],['ko','Phase 2 · Knockouts']];
-  tabsEl.innerHTML = tabs.map(([k,l]) =>
-    `<button class="chip${gbTab===k?' active':''}" onclick="setGbTab('${k}')">${l}</button>`).join('');
+function myBracketsHTML(key, hasReal) {
+  const list = myBrackets();
+  if (!list.length && !bracketHasPicks()) return '';
+  const publishedNames = new Set(explore.list.filter(e => e.kind !== 'predictor').map(e => (e.name||'').toLowerCase()));
+  const card = e => {
+    const active = e.id === state.id && !viewing;
+    const sc = scoreState(e.state, key);
+    const champ = e.state.finals && e.state.finals.final ? e.state.finals.final.winner : null;
+    return `<div class="mybr-card${active ? ' active' : ''}" onclick="switchToBracket('${e.id}')">
+      <div class="mybr-name">${TEAMS[champ]?.flag || '📝'} ${escapeHTML(e.name)}
+        ${active ? '<span class="mybr-badge">EDITING</span>' : ''}
+        ${publishedNames.has((e.name||'').toLowerCase()) ? '<span class="mybr-badge">PUBLISHED</span>' : ''}</div>
+      <div class="mybr-sub">${champ ? `${escapeHTML(champ)} wins it all` : 'group-stage picks so far'} · edited ${timeAgo(e.ts)}</div>
+      <div class="mybr-actions">
+        <button class="btn btn-small btn-gold" onclick="event.stopPropagation();switchToBracket('${e.id}')">✏️ Open &amp; edit</button>
+        <button class="btn btn-small" onclick="deleteMyBracket('${e.id}', event)">🗑</button>
+        <span class="mybr-pts">${hasReal ? sc.total + ' pts' : ''}</span>
+      </div>
+    </div>`;
+  };
+  return `<div class="gb-h">📝 My brackets <span class="tk-sub">yours to edit — tap one to keep picking · ➕ New Bracket up top starts another</span></div>
+    <div class="mybr-grid">${list.map(card).join('')}</div>`;
+}
 
-  if (explore.loading && !explore.list.length) { grid.innerHTML = '<p class="live-empty">Loading brackets…</p>'; meta.textContent='Loading…'; return; }
-  meta.textContent = '';
-  const { rows, live: hasReal, key, sortKey } = scoredEntries();
-  if (!rows.length) {
-    grid.innerHTML = `<p class="live-empty">${explore.error || 'No brackets yet — hit 🌍 Publish to be the first on the board.'}</p>`;
-    return;
-  }
+function bracketLeaderboardHTML(entries, key, hasReal) {
+  const sortKey = gbTab === 'group' ? 'group' : gbTab === 'ko' ? 'ko' : 'total';
+  const tabs = [['total','🏆 Overall'],['group','Phase 1 · Groups'],['ko','Phase 2 · Knockouts']];
+  document.getElementById('gb-tabs').innerHTML = tabs.map(([k,l]) =>
+    `<button class="chip${gbTab===k?' active':''}" onclick="setGbTab('${k}')">${l}</button>`).join('');
+  if (!entries.length) return `<p class="live-empty">${explore.error || 'No brackets published yet — hit 🌍 Publish to be the first on the board.'}</p>`;
+  const myIds = new Map(myBrackets().map(e => [(e.name||'').toLowerCase(), e.id]));
+  const rows = entries.map(({ b, payload }) => {
+    const s = payload ? (() => { try { return sanitizeBracketState(payload); } catch { return null; } })() : null;
+    return { b, sc: s ? scoreState(s, key) : { total:0, group:0, ko:0 } };
+  }).sort((a, z) => z.sc[sortKey] - a.sc[sortKey] || (z.b.ts||0) - (a.b.ts||0));
   const note = hasReal
     ? `Scored against real results so far · ${key.groupsDecided}/12 groups decided, ${key.koPlayed} knockout games in`
     : 'No real results yet — scores stay 0 until games are played. Order shown by recency.';
-  const idxInList = b => explore.list.indexOf(explore.list.find(x => x.hash === b.hash && x.name === b.name));
-  grid.innerHTML = `<p class="lb-note" style="font-size:12px;color:var(--muted);margin:0 0 10px">${note}</p>
+  return `<p class="lb-note" style="font-size:12px;color:var(--muted);margin:0 0 10px">${note}</p>
     <div class="lb-list">${rows.map((row, i) => {
       const { b, sc } = row;
-      const shown = sc[sortKey];
+      const mineId = myIds.get((b.name||'').toLowerCase());
+      const onclick = mineId ? `switchToBracket('${mineId}')` : `viewSharedBracket('${b.id || ''}')`;
       const champ = b.champion ? `${TEAMS[b.champion]?.flag||'🏆'} ${escapeHTML(b.champion)}` : 'group-stage only';
-      const onclick = b.localOnly ? `viewMyBracket(${b.ts})` : `viewSharedBracket(${idxInList(b)})`;
       return `<div class="lb-row${i<3 && hasReal ? ' lb-top' : ''}" onclick="${onclick}">
         <div class="lb-rank">${hasReal ? '#'+(i+1) : '•'}</div>
         <div class="lb-champ">${TEAMS[b.champion]?.flag || '🏆'}</div>
         <div class="lb-main">
-          <div class="lb-name">${escapeHTML(b.name)}${b.mine ? '<span class="lb-mine">YOU</span>' : ''}</div>
+          <div class="lb-name">${escapeHTML(b.name)}${mineId ? '<span class="lb-mine">YOU — tap to edit</span>' : ''}</div>
           <div class="lb-sub">${champ} · ${timeAgo(b.ts)}</div>
         </div>
         <div class="lb-score">
-          <div class="lb-score-num">${shown}</div>
+          <div class="lb-score-num">${sc[sortKey]}</div>
           <div class="lb-score-lbl">${sortKey==='group'?'group pts':sortKey==='ko'?'KO pts':'total pts'}</div>
         </div>
       </div>`;
     }).join('')}</div>`;
+}
+
+function predictorLeaderboardHTML(entries) {
+  document.getElementById('gb-tabs').innerHTML = '';
+  if (!entries.length) return `<p class="live-empty">No match-predictor picks published yet — make yours on the 🎯 Predictor tab.</p>`;
+  const myName = (localStorage.getItem('wcPublishName') || '').toLowerCase();
+  const rows = entries.map(({ b, payload }) => {
+    const picks = sanitizePredictorPicks(payload && payload.picks);
+    return { b, sc: scorePredictorPicks(picks), n: Object.keys(picks).length };
+  }).sort((a, z) => z.sc.total - a.sc.total || (z.b.ts||0) - (a.b.ts||0));
+  const anyGraded = rows.some(r => r.sc.graded > 0);
+  return `<p class="lb-note" style="font-size:12px;color:var(--muted);margin:0 0 10px">${anyGraded
+      ? 'Scored game-by-game against finished matches · Group +1 · R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd +8 · Final +32'
+      : 'No graded games yet — scores appear as matches finish.'}</p>
+    <div class="lb-list">${rows.map((row, i) => `
+      <div class="lb-row${i<3 && anyGraded ? ' lb-top' : ''}">
+        <div class="lb-rank">${anyGraded ? '#'+(i+1) : '•'}</div>
+        <div class="lb-champ">🎯</div>
+        <div class="lb-main">
+          <div class="lb-name">${escapeHTML(row.b.name)}${(row.b.name||'').toLowerCase() === myName ? '<span class="lb-mine">YOU</span>' : ''}</div>
+          <div class="lb-sub">${row.n} pick${row.n===1?'':'s'} · ${row.sc.correct}/${row.sc.graded} graded right · ${timeAgo(row.b.ts)}</div>
+        </div>
+        <div class="lb-score">
+          <div class="lb-score-num">${row.sc.total}</div>
+          <div class="lb-score-lbl">pts</div>
+        </div>
+      </div>`).join('')}</div>`;
+}
+
+function renderExplore() {
+  const meta = document.getElementById('explore-meta');
+  const grid = document.getElementById('explore-grid');
+  document.getElementById('gb-games').innerHTML = [['brackets','🏆 Brackets'],['predictor','🎯 Match Predictor']]
+    .map(([k,l]) => `<button class="chip${gbGame===k?' active':''}" onclick="setGbGame('${k}')">${l}</button>`).join('');
+  if (explore.loading && !explore.list.length) { grid.innerHTML = '<p class="live-empty">Loading brackets…</p>'; meta.textContent = 'Loading…'; return; }
+  meta.textContent = '';
+  const key = buildAnswerKey();
+  const hasReal = key.groupsDecided > 0 || key.koPlayed > 0;
+  document.getElementById('my-brackets').innerHTML = myBracketsHTML(key, hasReal);
+  const { brackets, predictors } = splitEntries();
+  grid.innerHTML = gbGame === 'predictor'
+    ? predictorLeaderboardHTML(predictors)
+    : bracketLeaderboardHTML(brackets, key, hasReal);
 }
 
 function loadIntoViewer(loaded, name) {
@@ -2449,14 +2749,8 @@ function loadIntoViewer(loaded, name) {
   renderAll();
   window.scrollTo({ top: 0 });
 }
-function viewSharedBracket(i) {
-  const b = explore.list[i];
-  if (!b) return;
-  let loaded; try { loaded = sanitizeBracketState(decodeHash(b.hash)); } catch { loaded = null; }
-  loadIntoViewer(loaded, b.name);
-}
-function viewMyBracket(ts) {
-  const b = getMyBrackets().find(x => x.ts === ts);
+function viewSharedBracket(entryId) {
+  const b = explore.list.find(x => String(x.id) === String(entryId));
   if (!b) return;
   let loaded; try { loaded = sanitizeBracketState(decodeHash(b.hash)); } catch { loaded = null; }
   loadIntoViewer(loaded, b.name);
@@ -2745,9 +3039,6 @@ function renderTickets() {
 }
 
 // ─── inventory, prices, daily snapshots ──────────────────────
-const lsGet = (k, fb) => { try { return JSON.parse(localStorage.getItem(k)) ?? fb; } catch { return fb; } };
-const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
-
 let watchlist = lsGet('wcWatch', {});   // gameKey → {keyTeam?, cost?}
 let prices = lsGet('wcPrices', {});     // gameKey → current get-in $ (manual or SeatGeek)
 
@@ -3451,6 +3742,7 @@ function saveState() {
   if (viewing) return; // never persist while looking at someone else's bracket
   try { history.replaceState(null, '', '#' + encodeHash(stripStateForShare())); } catch {}
   try { localStorage.setItem('wcBracketState', JSON.stringify(state)); } catch {}
+  try { persistActive(); } catch {}  // keep the My-brackets collection in sync
 }
 
 function loadState() {
@@ -3468,6 +3760,7 @@ function loadState() {
   if (!loaded) return;
   state = { ...state, ...loaded };
   if (!state.selectedThirds) state.selectedThirds = [];
+  if (!state.id) state.id = newBracketId();   // pre-multi-bracket states get an id
   pickState = {};
 }
 

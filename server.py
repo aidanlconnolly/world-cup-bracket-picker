@@ -81,15 +81,25 @@ def brackets():
     if not name:
         return jsonify({'error': 'invalid bracket'}), 400
 
-    remaining = [b for b in load_brackets() if b.get('name', '').lower() != name.lower()]
+    # one entry per (name, kind): a person can hold a bracket AND predictor picks
+    kind = 'predictor' if data.get('kind') == 'predictor' else 'bracket'
+    def same(b):
+        return b.get('name', '').lower() == name.lower() and b.get('kind', 'bracket') == kind
 
-    # {"name": ..., "remove": true} unpublishes that name (no auth — friend-group toy)
+    # {"name": ..., "remove": true} unpublishes (no auth — friend-group toy);
+    # with "kind" it removes just that kind, legacy removes wipe the whole name
     if data.get('remove'):
+        if 'kind' in data:
+            remaining = [b for b in load_brackets() if not same(b)]
+        else:
+            remaining = [b for b in load_brackets() if b.get('name', '').lower() != name.lower()]
         try:
             save_brackets(remaining)
         except Exception:
             return jsonify({'error': 'storage unavailable'}), 502
         return jsonify({'ok': True, 'removed': name})
+
+    remaining = [b for b in load_brackets() if not same(b)]
 
     bracket_hash = str(data.get('hash', ''))
     if not bracket_hash or len(bracket_hash) > 50000:
@@ -98,9 +108,10 @@ def brackets():
     entry = {
         'id': f'{int(time.time()*1000)}-{secrets.token_hex(3)}',
         'name': name,
+        'kind': kind,
         'champion': str(data.get('champion', ''))[:40],
         'runnerUp': str(data.get('runnerUp', ''))[:40],
-        'mode': 'ai' if data.get('mode') == 'ai' else 'pick',
+        'mode': 'pick',
         'hash': bracket_hash,
         'ts': int(time.time() * 1000),
     }

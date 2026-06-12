@@ -26,8 +26,11 @@ live at world-cup-bracket-picker.vercel.app). `gh` and `vercel` CLIs are at
 
 ## Architecture
 
-- `index.html` — the entire app; four views (`#view-bracket`, `#view-live`,
-  `#view-explore`, `#view-tickets`) toggled by `setTab()`
+- `index.html` — the entire app; five views (`#view-bracket`, `#view-live`,
+  `#view-predictor`, `#view-explore`, `#view-tickets`) toggled by `setTab()`.
+  `lsGet`/`lsSet` are declared at the top of the script on purpose — several
+  modules (predictor, folds, watchlist) read their stores at evaluation time,
+  and a TDZ hit there kills the whole script
 - `server.py` — Flask app serving index.html + all `/api` routes. **Vercel deploys this
   Flask app via its Python/Flask preset and routes `/api/*` through it** (confirmed via
   prod tracebacks) — so server-side changes must land in `server.py`, not just `api/`
@@ -45,13 +48,21 @@ routes and `callSimulate`/`callFinal` are dead code left in place).
 
 ### Bracket state model (`state` in index.html)
 
-`{ mode:'pick', name, groups, picks, ko, finals:{final, thirdPlace}, awards,
+`{ mode:'pick', id, name, groups, picks, ko, finals:{final, thirdPlace}, awards,
 selectedThirds, thirdAssign, koFromReal }`. Group entries are `{done, standings, real?,
 live?, played?}` — `live:true` means a partial real-results table that renders but does
 NOT resolve the bracket (only `done:true` does). Match results are
 `{winner, loser, prob, reasoning, real?, score?}`. `freshState()` is the canonical
 empty bracket. `name` labels a bracket on the leaderboard; `koFromReal` is the Phase-2
 toggle (below).
+
+**Multi-bracket**: `state.id` (local-only — NOT in share hashes) keys an entry in
+`wcMyBrackets` (full-state snapshots, newest-edited first, cap 20). `saveState()` →
+`persistActive()` keeps the collection in sync on every edit; `switchToBracket(id)`
+swaps the active bracket for editing; `newBracket()` (the nav's ➕, formerly Reset)
+banks the current one and starts fresh; `deleteMyBracket(id)` resets to fresh if you
+delete the one being edited. Old hash-only `wcMyBrackets` entries migrate lazily in
+`myBrackets()`.
 
 Bracket slots resolve through a small grammar in `resolveSlot()`: `'1A'`/`'2B'`
 (group position), `'3rd:A/B/C/D/F'` (third-place slot, eligibility in `THIRD_SLOTS`),
@@ -78,6 +89,19 @@ windows). `scoreState(s, key)` compares a prediction to that key:
 Results flagged `real:true` (pulled in by Sync Real) are **skipped** so syncing never
 inflates your own score. `renderScoreboard()` shows the live tally on the bracket view
 (hidden until any real result exists); the same function powers the leaderboard.
+
+### Match Predictor (`#view-predictor` tab)
+
+The other game: call every individual fixture before kickoff. Picks live in
+`wcPredictor` (`{picks: {espnEventId: teamName|'DRAW'}}`), keyed off the ESPN ids in
+`live.matches`. Group games are 1X2 (+1 for the right result); knockouts are
+winner-only with `PRED_PTS` escalation (R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd +8 ·
+Final +32). `predPickable()` locks a pick the moment a match leaves `state:'pre'`;
+TBD knockout slots open when ESPN names the real teams. `scorePredictorPicks()`
+grades against finished matches (`predOutcome()` handles draws and post-pens
+winners). Published predictor entries go through the same `/api/brackets` store with
+`kind:'predictor'` and the picks encoded in `hash` (`{predictor:true, picks}`),
+sanitized by `sanitizePredictorPicks()` on read.
 
 ### Share links, persistence, and the sanitizer coupling
 
@@ -177,17 +201,22 @@ $/demand vs the median (`medianVpd()`).
 
 Storage: one JSON array under KV key `wc2026:brackets`. `server.py` uses Vercel KV via
 REST (stdlib urllib) when `KV_REST_API_URL`+`KV_REST_API_TOKEN` (or
-`UPSTASH_REDIS_REST_*`) exist, else `brackets.local.json` (gitignored). One bracket per
-name (newest wins, case-insensitive), capped at 100. POST `{"name": X, "remove": true}`
-unpublishes — no auth, friend-group toy. Prod KV is confirmed working; if "publish
-seems broken" it's almost always client-side, not storage.
+`UPSTASH_REDIS_REST_*`) exist, else `brackets.local.json` (gitignored). Entries carry
+`kind: 'bracket'|'predictor'` and dedupe by **(name, kind)** case-insensitively —
+one name can hold both a bracket and predictor picks. Capped at 100. POST
+`{"name": X, "remove": true}` unpublishes (with `kind` removes just that kind; legacy
+removes without `kind` wipe the whole name) — no auth, friend-group toy. Prod KV is
+confirmed working; if "publish seems broken" it's almost always client-side.
 
-UI: `renderExplore()` is a **leaderboard**, not a grid — `scoredEntries()` decodes every
-published bracket's hash, runs `scoreState()` against the current answer key, and ranks
-by the active `gbTab` (`total`/`group`/`ko`). Your locally-saved brackets
-(`wcMyBrackets`) are merged in and flagged `YOU`; unpublished local drafts also show
-(`localOnly`), deduped against published entries by hash. Until a real result exists,
-rows sort by recency and all show 0.
+UI: split into **📝 My brackets** (editable — `myBracketsHTML()` cards open via
+`switchToBracket()`, with EDITING/PUBLISHED badges and delete) and a **read-only
+leaderboard** with a game switcher (`gbGame`: `brackets`/`predictor`).
+`splitEntries()` separates published entries by `kind` (falling back to payload
+sniffing for old entries). `bracketLeaderboardHTML()` ranks by the active `gbTab`
+(`total`/`group`/`ko`); rows whose name matches one of your local brackets get a
+"YOU — tap to edit" badge and route to `switchToBracket()` instead of the read-only
+viewer. `predictorLeaderboardHTML()` ranks predictor entries by
+`scorePredictorPicks()`. Until a real result exists, rows sort by recency and show 0.
 
 - **Publish** (`openPublishModal()` → `submitPublish()`): an **inline modal**, not
   `prompt()` — `prompt()` is silently suppressed in many mobile/in-app browsers, which
