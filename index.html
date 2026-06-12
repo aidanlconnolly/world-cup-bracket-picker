@@ -268,6 +268,97 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 .champion-subtitle { font-size: 14px; color: var(--muted); margin-top: 6px; }
 .champion-publish { margin-top: 18px; }
 .champion-publish-sub { font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+/* GLOBAL BRACKETS big button row */
+.gb-row { display: flex; justify-content: center; padding: 14px 16px 0; }
+.btn-global {
+  width: min(720px, 92%); padding: 16px 24px; border-radius: 14px;
+  background: linear-gradient(135deg, rgba(255,215,0,0.22), rgba(255,215,0,0.06));
+  border: 2px solid var(--gold); color: var(--gold);
+  font-size: 18px; font-weight: 800; letter-spacing: 0.3px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  transition: transform 0.12s, box-shadow 0.2s;
+}
+.btn-global:hover { transform: translateY(-1px); box-shadow: 0 0 28px var(--gold-glow); }
+.btn-global .gb-sub { font-size: 12px; font-weight: 500; color: var(--muted); }
+
+/* SCOREBOARD + phase headers */
+.scoreboard {
+  max-width: 1100px; margin: 16px auto 0; padding: 14px 18px;
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px;
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+}
+.sb-total { display: flex; align-items: baseline; gap: 8px; }
+.sb-total-num { font-size: 30px; font-weight: 800; color: var(--gold); line-height: 1; }
+.sb-total-lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.sb-phases { display: flex; gap: 10px; flex-wrap: wrap; }
+.sb-pill {
+  background: rgba(255,255,255,0.05); border: 1px solid var(--card-border);
+  border-radius: 9px; padding: 6px 12px; font-size: 12px;
+}
+.sb-pill b { color: var(--gold); font-size: 15px; }
+.sb-note { font-size: 11px; color: var(--muted); margin-left: auto; }
+.phase-header {
+  max-width: 1100px; margin: 30px auto 0; display: flex; align-items: center;
+  gap: 12px; flex-wrap: wrap; padding: 0 4px;
+}
+.phase-tag {
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px;
+  color: #0b0b0b; background: var(--gold); border-radius: 6px; padding: 3px 9px;
+}
+.phase-header h2 { margin: 0; border: none; padding: 0; }
+.phase-score { font-size: 13px; color: var(--muted); }
+.phase-score b { color: var(--gold); }
+.phase-header .btn { margin-left: auto; }
+.ko-seed-note {
+  max-width: 1100px; margin: 8px auto 0; font-size: 12px; color: var(--muted);
+  background: rgba(74,163,255,0.08); border: 1px solid rgba(74,163,255,0.25);
+  border-radius: 9px; padding: 8px 12px;
+}
+
+/* SCORING legend chips on results */
+.score-earned { color: #2ecc71; font-weight: 700; font-size: 10px; }
+.score-miss { color: #ff6b6b; font-weight: 700; font-size: 10px; }
+
+/* GLOBAL BRACKETS leaderboard */
+.gb-tabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.lb-list { display: flex; flex-direction: column; gap: 8px; }
+.lb-row {
+  display: flex; align-items: center; gap: 14px; padding: 12px 16px;
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 11px;
+  cursor: pointer; transition: border-color 0.15s;
+}
+.lb-row:hover { border-color: var(--gold); }
+.lb-rank { font-size: 18px; font-weight: 800; color: var(--muted); min-width: 34px; text-align: center; }
+.lb-row.lb-top .lb-rank { color: var(--gold); }
+.lb-main { flex: 1; min-width: 0; }
+.lb-name { font-size: 15px; font-weight: 700; }
+.lb-sub { font-size: 12px; color: var(--muted); }
+.lb-mine { font-size: 9px; font-weight: 700; color: var(--gold); border: 1px solid var(--gold); border-radius: 4px; padding: 1px 5px; margin-left: 6px; }
+.lb-score { text-align: right; }
+.lb-score-num { font-size: 22px; font-weight: 800; color: var(--gold); line-height: 1; }
+.lb-score-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; }
+.lb-champ { font-size: 22px; }
+
+/* PUBLISH MODAL */
+#modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100;
+  display: none; align-items: center; justify-content: center; padding: 20px;
+}
+#modal-overlay.show { display: flex; }
+.modal-box {
+  background: #12161c; border: 1px solid var(--card-border); border-radius: 14px;
+  padding: 24px; width: min(440px, 100%); box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.modal-box h3 { margin: 0 0 4px; font-size: 18px; }
+.modal-box p { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
+.modal-box input {
+  width: 100%; padding: 11px 14px; border-radius: 9px; font-size: 15px;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--card-border); color: var(--text);
+  margin-bottom: 16px; box-sizing: border-box;
+}
+.modal-box input:focus { outline: none; border-color: var(--gold); }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
 .awards-grid { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; max-width: 900px; margin: 0 auto; }
 .award-card {
   background: var(--card-bg); border: 1px solid var(--card-border);
@@ -509,7 +600,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
   <div class="tab-toggle">
     <button id="tab-btn-bracket" class="active" onclick="setTab('bracket')">Bracket</button>
     <button id="tab-btn-live" onclick="setTab('live')">Matches <span id="live-nav-dot" class="live-nav-dot" style="display:none"></span></button>
-    <button id="tab-btn-explore" onclick="setTab('explore')">🌍 Explore</button>
+    <button id="tab-btn-explore" onclick="setTab('explore')">🌍 Global Brackets</button>
     <button id="tab-btn-tickets" onclick="setTab('tickets')">🎟 Tickets Analysis</button>
   </div>
   <div class="nav-links">
@@ -519,15 +610,11 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
     <a href="#champion-section">🥇 Champion</a>
   </div>
   <div class="nav-actions">
-    <div class="mode-toggle">
-      <button id="btn-ai" onclick="setMode('ai')">🤖 AI Mode</button>
-      <button id="btn-pick" class="active" onclick="setMode('pick')">👆 Pick Mode</button>
-    </div>
-    <button class="btn btn-gold" id="btn-simulate-all" onclick="simulateAll()">⚡ Simulate All</button>
-    <button class="btn" id="btn-sync-real" onclick="syncRealResults()" title="Fill in actual tournament results">📡 Sync Real</button>
-    <button class="btn" onclick="publishBracket()" title="Publish your bracket to the Explore tab">🌍 Publish</button>
+    <button class="btn btn-gold" id="btn-simulate-all" onclick="simulateAll()" title="Auto-fill the bracket by team strength">⚡ Auto-fill</button>
+    <button class="btn" id="btn-sync-real" onclick="syncRealResults()" title="Pull in actual tournament results to compare against">📡 Sync Real</button>
+    <button class="btn btn-gold" onclick="openPublishModal()" title="Publish your bracket so friends can see & rank it">🌍 Publish</button>
     <button class="btn" onclick="copyShareLink()">📋 Share</button>
-    <button class="btn" onclick="resetAll()">🔄 Reset</button>
+    <button class="btn" onclick="newBracket()" title="Save this bracket and start a fresh one">➕ New Bracket</button>
   </div>
 </nav>
 
@@ -538,8 +625,20 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
   <button class="btn btn-gold" onclick="exitViewing()">← Back to my bracket</button>
 </div>
 
+<div class="gb-row">
+  <button class="btn-global" onclick="setTab('explore')">
+    🌍 Global Brackets <span class="gb-sub">— see how your picks rank against everyone</span>
+  </button>
+</div>
+
+<div id="scoreboard" class="scoreboard" style="display:none"></div>
+
 <section id="groups-section">
-  <h2>Group Stage</h2>
+  <div class="phase-header">
+    <span class="phase-tag">Phase 1</span>
+    <h2>Group Stage</h2>
+    <span class="phase-score" id="phase1-score"></span>
+  </div>
   <div id="groups-grid"></div>
 </section>
 
@@ -549,7 +648,13 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 </section>
 
 <section id="bracket-section">
-  <h2>Knockout Bracket</h2>
+  <div class="phase-header">
+    <span class="phase-tag">Phase 2</span>
+    <h2>Knockout Bracket</h2>
+    <span class="phase-score" id="phase2-score"></span>
+    <button class="btn" id="btn-seed-ko" onclick="toggleSeedKnockouts()" title="Pick the knockouts from the real qualifiers — a fresh second tournament">🔑 Knockouts from real field</button>
+  </div>
+  <div id="ko-seed-note" class="ko-seed-note" style="display:none"></div>
   <div class="bracket-rounds-header" id="round-headers"></div>
   <div class="bracket-scroll">
     <div id="bracket-wrap">
@@ -579,15 +684,29 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 
 <div id="view-explore" style="display:none">
 <section id="explore-section">
-  <h2>Explore Brackets</h2>
+  <h2>🌍 Global Brackets</h2>
   <div class="live-controls">
-    <span style="font-size:13px;color:var(--muted)">Community predictions — finish your bracket and hit 🌍 Publish to join</span>
+    <span style="font-size:13px;color:var(--muted)">Everyone's predictions, ranked by score against the real results — publish yours to join the leaderboard</span>
     <span class="live-updated" id="explore-meta"></span>
+    <button class="btn btn-gold" onclick="openPublishModal()">🌍 Publish my bracket</button>
     <button class="btn" onclick="refreshExplore()">⟳ Refresh</button>
   </div>
+  <div class="gb-tabs" id="gb-tabs"></div>
   <div id="explore-grid"><p class="live-empty">Loading brackets…</p></div>
 </section>
 </div><!-- /view-explore -->
+
+<div id="modal-overlay" onclick="if(event.target===this)closePublishModal()">
+  <div class="modal-box">
+    <h3>Publish your bracket</h3>
+    <p id="publish-modal-sub">Give it a name so friends can find you on the leaderboard.</p>
+    <input id="publish-name" type="text" maxlength="30" placeholder="Your name or team name" onkeydown="if(event.key==='Enter')submitPublish()">
+    <div class="modal-actions">
+      <button class="btn" onclick="closePublishModal()">Cancel</button>
+      <button class="btn btn-gold" onclick="submitPublish()">🌍 Publish</button>
+    </div>
+  </div>
+</div>
 
 <div id="view-tickets" style="display:none">
 <section id="tickets-section">
@@ -753,12 +872,15 @@ const THIRD_SLOTS = {
 // ─── STATE ────────────────────────────────────────────────────
 let state = {
   mode: 'pick',
+  name: '',
   groups: {},
   picks: {},
   ko: {},
   finals: { final: null, thirdPlace: null },
   awards: null,
   selectedThirds: [],
+  thirdAssign: null,
+  koFromReal: false,
 };
 
 // ─── SIMULATION HELPERS ───────────────────────────────────────
@@ -864,10 +986,67 @@ function simulateGroupData(groupId) {
 
 // ─── SLOT RESOLUTION ──────────────────────────────────────────
 function getGroupStandings(g) {
+  // In "knockouts from real field" mode, the bracket entrants come from the
+  // ACTUAL group results, not the user's group-stage picks — so Phase 2 is a
+  // clean second tournament independent of how Phase 1 went.
+  if (state.koFromReal) {
+    const rs = realStandings(g);
+    if (rs) return rs;
+  }
   if (state.groups[g] && state.groups[g].done) {
     return state.groups[g].standings.map((s,i) => ({ ...s, pos:i+1 }));
   }
   return null;
+}
+
+function realStandings(g) {
+  const gm = (live.matches || []).filter(m =>
+    (m.round||'').startsWith('Group') && m.state === 'post' && (TEAMS[m.home.name]||{}).group === g);
+  if (gm.length < 6) return null;
+  return computeRealStandings(g, gm).map((s,i) => ({ ...s, pos:i+1 }));
+}
+
+// True once all 12 real group tables are final — the moment Phase 2 can be
+// seeded from the real field.
+function realFieldReady() {
+  return Object.keys(GROUPS).every(g => realStandings(g));
+}
+
+// The "second tournament": once the real qualifiers are known, fill the
+// knockout bracket from THEM (not your group picks) and score it separately.
+function toggleSeedKnockouts() {
+  if (viewing) return;
+  if (!state.koFromReal) {
+    if (!realFieldReady()) { showToast('Unlocks once all 12 real groups are final — hit 📡 Sync Real after the group stage'); return; }
+    state.koFromReal = true;
+    state.ko = {}; state.finals = { final:null, thirdPlace:null }; state.awards = null;
+    if (!state.thirdAssign) state.selectedThirds = getThirdPlaces().slice(0,8).map(t => t.team);
+    showToast('🔑 Phase 2 seeded from the real field — pick the knockouts to rack up points');
+  } else {
+    state.koFromReal = false;
+    state.ko = {}; state.finals = { final:null, thirdPlace:null };
+    showToast('Back to your own group picks feeding the knockouts');
+  }
+  saveState();
+  renderAll();
+}
+
+function renderSeedButton() {
+  const btn = document.getElementById('btn-seed-ko');
+  const note = document.getElementById('ko-seed-note');
+  if (!btn) return;
+  const ready = realFieldReady();
+  btn.style.display = viewing ? 'none' : '';
+  btn.disabled = !ready && !state.koFromReal;
+  btn.classList.toggle('btn-gold', !!state.koFromReal);
+  btn.textContent = state.koFromReal ? '↺ Back to my own bracket' : '🔑 Knockouts from real field';
+  btn.title = state.koFromReal ? 'Return to your group-stage picks feeding the bracket'
+    : ready ? 'Pick the knockouts from the real qualifiers — a fresh second tournament'
+    : 'Unlocks once all 12 real group tables are final';
+  if (note) {
+    note.style.display = state.koFromReal ? '' : 'none';
+    if (state.koFromReal) note.innerHTML = '🔑 <b>Knockouts from the real field.</b> Entrants below are the actual qualifiers — your group picks don\'t feed in here. Scored as its own tournament.';
+  }
 }
 
 function getThirdPlaces() {
@@ -1086,30 +1265,12 @@ async function simulateKnockout(matchId, silent = false) {
   const loser  = winner === t1 ? t2 : t1;
   const winProb = winner === t1 ? prob : 100 - prob;
 
-  let reasoning = '';
-  if (state.mode === 'ai' && !silent) {
-    const card = document.getElementById(`card-${matchId}`);
-    if (card) {
-      const btn = card.querySelector('.btn-simulate');
-      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
-    }
-    const stageName = matchId.startsWith('r32') ? 'Round of 32' :
-                      matchId.startsWith('r16') ? 'Round of 16' :
-                      matchId.startsWith('qf')  ? 'Quarterfinal' :
-                      matchId.startsWith('sf')  ? 'Semifinal' :
-                      matchId === 'final'        ? 'World Cup Final' : '3rd Place Match';
-    reasoning = await callSimulate(t1, t2, winner, winProb, stageName, def.venue);
-  }
-
   if (matchId === 'final') {
-    state.finals.final = { winner, loser, prob:winProb, reasoning };
-    if (state.finals.final && state.finals.thirdPlace && !state.awards && state.mode === 'ai' && !silent) {
-      state.awards = await callFinal(winner, loser, state.finals.thirdPlace.winner);
-    }
+    state.finals.final = { winner, loser, prob:winProb, reasoning:'' };
   } else if (matchId === 'third-place') {
-    state.finals.thirdPlace = { winner, loser, prob:winProb, reasoning };
+    state.finals.thirdPlace = { winner, loser, prob:winProb, reasoning:'' };
   } else {
-    state.ko[matchId] = { winner, loser, prob:winProb, reasoning };
+    state.ko[matchId] = { winner, loser, prob:winProb, reasoning:'' };
   }
 
   saveState();
@@ -1168,8 +1329,8 @@ async function simulateAll() {
   simulateAllGroups();
   await sleep(200);
 
-  // In pick mode, auto-select top 8 thirds if not already selected
-  if (state.mode === 'pick' && (!state.selectedThirds || state.selectedThirds.length < 8)) {
+  // auto-select top 8 thirds if not already selected
+  if (!state.selectedThirds || state.selectedThirds.length < 8) {
     const thirds = getThirdPlaces();
     state.selectedThirds = thirds.slice(0, 8).map(t => t.team);
     renderThirdPlace();
@@ -1177,19 +1338,9 @@ async function simulateAll() {
 
   for (const def of [...ALL_KO, FINAL_DEF, THIRD_DEF]) {
     if (!isMatchDone(def.id)) {
-      await simulateKnockout(def.id, state.mode === 'pick');
-      await sleep(state.mode === 'ai' ? 400 : 80);
+      await simulateKnockout(def.id, true);
+      await sleep(70);
     }
-  }
-
-  if (state.mode === 'ai' && state.finals.final && !state.awards) {
-    state.awards = await callFinal(
-      state.finals.final.winner,
-      state.finals.final.loser,
-      state.finals.thirdPlace ? state.finals.thirdPlace.winner : ''
-    );
-    saveState();
-    renderChampion();
   }
 
   simRunning = false;
@@ -1204,22 +1355,27 @@ function isMatchDone(matchId) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ─── MODE ─────────────────────────────────────────────────────
-function setMode(m) {
-  state.mode = m;
-  pickState = {};
-  document.getElementById('btn-ai').classList.toggle('active', m === 'ai');
-  document.getElementById('btn-pick').classList.toggle('active', m === 'pick');
-  saveState();
-  renderAll();
+function freshState() {
+  return { mode:'pick', groups:{}, picks:{}, ko:{}, finals:{ final:null, thirdPlace:null },
+    awards:null, selectedThirds:[], thirdAssign:null, koFromReal:false, name:'' };
 }
 
-// ─── RESET ────────────────────────────────────────────────────
-function resetAll() {
-  state = { mode: state.mode, groups:{}, picks:{}, ko:{}, finals:{ final:null, thirdPlace:null }, awards:null, selectedThirds:[], thirdAssign:null };
+// ─── NEW BRACKET ──────────────────────────────────────────────
+// "Reset" now banks the current bracket into your local collection (shown on
+// the Global Brackets tab under "My brackets") and starts a fresh one, so you
+// can keep several entries — e.g. one per friend-group pool.
+function bracketHasPicks(s = state) {
+  return Object.keys(s.groups || {}).length > 0 || Object.keys(s.ko || {}).length > 0
+    || !!(s.finals && s.finals.final);
+}
+function newBracket() {
+  if (viewing) { exitViewing(); return; }
+  if (bracketHasPicks()) saveMyBracket(state);
+  state = freshState();
   pickState = {};
   saveState();
   renderAll();
+  showToast('Fresh bracket started — your previous one is saved under 🌍 Global Brackets');
 }
 
 // ─── RENDER GROUPS ────────────────────────────────────────────
@@ -1497,8 +1653,8 @@ function renderChampion() {
     <span class="champion-flag">${flag}</span>
     <div class="champion-name">${champion}</div>
     <div class="champion-subtitle">2026 FIFA World Cup Champions</div>
-    ${viewing ? '' : `<button class="btn btn-gold champion-publish" onclick="publishBracket()">🌍 Publish this bracket</button>
-    <div class="champion-publish-sub">your call is in — put it on the Explore tab for the group to see</div>`}
+    ${viewing ? '' : `<button class="btn btn-gold champion-publish" onclick="openPublishModal()">🌍 Publish this bracket</button>
+    <div class="champion-publish-sub">your call is in — put it on Global Brackets for the group to see &amp; rank</div>`}
   `;
 
   let awards = '';
@@ -1507,10 +1663,36 @@ function renderChampion() {
       <div class="award-card"><div class="award-icon">🥾</div><div class="award-label">Golden Boot</div><div class="award-text">${state.awards.goldenBoot}</div></div>
       <div class="award-card"><div class="award-icon">⭐</div><div class="award-label">Surprise Team</div><div class="award-text">${state.awards.surpriseTeam}</div></div>
       <div class="award-card"><div class="award-icon">📖</div><div class="award-label">Tournament Story</div><div class="award-text">${state.awards.summary}</div></div>`;
-  } else if (state.mode === 'ai') {
-    awards = `<div class="award-card" style="min-width:220px"><div class="award-icon">🤖</div><div class="award-label">Awards</div><div class="award-text" style="color:var(--muted)">Fetching AI analysis…</div></div>`;
   }
   document.getElementById('awards-grid').innerHTML = awards;
+}
+
+// ─── SCOREBOARD ───────────────────────────────────────────────
+// Live tally of the current bracket vs the real results from the ESPN feed.
+function renderScoreboard() {
+  const board = document.getElementById('scoreboard');
+  const p1 = document.getElementById('phase1-score');
+  const p2 = document.getElementById('phase2-score');
+  if (!board) return;
+  const key = buildAnswerKey();
+  const hasReal = key.groupsDecided > 0 || key.koPlayed > 0;
+  if (!hasReal) {
+    board.style.display = 'none';
+    if (p1) p1.innerHTML = '';
+    if (p2) p2.innerHTML = '';
+    return;
+  }
+  const sc = scoreState(state, key);
+  board.style.display = 'flex';
+  board.innerHTML = `
+    <div class="sb-total"><span class="sb-total-num">${sc.total}</span><span class="sb-total-lbl">total pts</span></div>
+    <div class="sb-phases">
+      <span class="sb-pill">Phase 1 · Groups <b>${sc.group}</b></span>
+      <span class="sb-pill">Phase 2 · Knockouts <b>${sc.ko}</b></span>
+    </div>
+    <span class="sb-note">scored vs real results · ${key.groupsDecided}/12 groups, ${key.koPlayed} KO games in${viewing ? ` · viewing ${escapeHTML(viewing.name)}` : ''}</span>`;
+  if (p1) p1.innerHTML = `<b>${sc.group}</b> pts`;
+  if (p2) p2.innerHTML = `<b>${sc.ko}</b> pts`;
 }
 
 // ─── RENDER ALL ───────────────────────────────────────────────
@@ -1519,6 +1701,8 @@ function renderAll() {
   renderThirdPlace();
   renderBracket();
   renderChampion();
+  renderScoreboard();
+  renderSeedButton();
 }
 
 // ─── HASH ENCODING (UTF-8 safe) ──────────────────────────────
@@ -1954,7 +2138,9 @@ function validTeam(t) { return typeof t === 'string' && Object.prototype.hasOwnP
 
 function sanitizeBracketState(s) {
   if (!s || typeof s !== 'object') return null;
-  const out = { mode: s.mode === 'ai' ? 'ai' : 'pick', groups:{}, picks:{}, ko:{}, finals:{ final:null, thirdPlace:null }, awards:null, selectedThirds:[], thirdAssign:null };
+  const out = { mode: 'pick', name: typeof s.name === 'string' ? s.name.slice(0, 30) : '',
+    groups:{}, picks:{}, ko:{}, finals:{ final:null, thirdPlace:null }, awards:null,
+    selectedThirds:[], thirdAssign:null, koFromReal: !!s.koFromReal };
   for (const [g, grp] of Object.entries(s.groups || {})) {
     if (!GROUPS[g] || !grp || !Array.isArray(grp.standings)) continue;
     const standings = grp.standings.filter(r => r && validTeam(r.team)).map(r => ({
@@ -1989,30 +2175,188 @@ function timeAgo(ts) {
   return `${Math.round(hrs / 24)}d ago`;
 }
 
-async function publishBracket() {
+// ─── SCORING (March-Madness style) ───────────────────────────
+// Two "tournaments" scored against the real results from the ESPN live feed:
+//  • Phase 1 (Group Stage): exact 1st +5, exact 2nd +3, right team wrong slot
+//    +2, each correctly-tipped 3rd-place qualifier +2.
+//  • Phase 2 (Knockouts): points for every team you correctly sent THROUGH a
+//    round, escalating — reach R16 +2, QF +4, SF +8, Final +16, champion +32,
+//    plus the 3rd-place match winner +8.
+// Only genuine predictions score; results pulled in via Sync Real carry
+// real:true and are skipped so syncing never inflates your own score.
+const KO_REACH_PTS = { r16:2, qf:4, sf:8, fin:16, champ:32, third:8 };
+const GROUP_PTS = { first:5, second:3, swap:2, third:2 };
+
+function koRoundOf(m) {
+  const r = (m.round || '').toLowerCase();
+  if (r.includes('32')) return 'r32';
+  if (r.includes('16')) return 'r16';
+  if (r.includes('quarter')) return 'qf';
+  if (r.includes('semi')) return 'sf';
+  if (r.includes('third') || r.includes('3rd')) return 'third';
+  if (r.includes('final')) return 'fin';
+  // fallback: bucket by kickoff date against the fixture windows
+  const t = new Date(m.date).getTime();
+  const before = iso => t < new Date(iso).getTime();
+  if (before('2026-07-04T12:00Z')) return 'r32';
+  if (before('2026-07-08T12:00Z')) return 'r16';
+  if (before('2026-07-13T12:00Z')) return 'qf';
+  if (before('2026-07-17T12:00Z')) return 'sf';
+  if (before('2026-07-19T00:00Z')) return 'third';
+  return 'fin';
+}
+
+// Reality, derived purely from the live feed (never from anyone's picks).
+function buildAnswerKey() {
+  const key = { groups:{}, groupsDecided:0, thirds:null,
+    reached:{ r16:new Set(), qf:new Set(), sf:new Set(), fin:new Set() },
+    champ:null, third:null, koPlayed:0 };
+  const ms = live.matches || [];
+  const groupPosts = ms.filter(m => (m.round||'').startsWith('Group') && m.state === 'post');
+  const thirdsPool = [];
+  for (const g of Object.keys(GROUPS)) {
+    const gm = groupPosts.filter(m => (TEAMS[m.home.name]||{}).group === g);
+    if (gm.length >= 6) {
+      const st = computeRealStandings(g, gm);
+      key.groups[g] = { first: st[0].team, second: st[1].team, third: st[2].team };
+      key.groupsDecided++;
+      const t3 = st[2];
+      thirdsPool.push({ team:t3.team, pts:t3.pts, gd:(t3.gf-t3.ga), gf:t3.gf });
+    }
+  }
+  if (key.groupsDecided === 12) {
+    thirdsPool.sort((a,b) => b.pts-a.pts || b.gd-a.gd || b.gf-a.gf);
+    key.thirds = new Set(thirdsPool.slice(0,8).map(t => t.team));
+  }
+  const koPosts = ms.filter(m => !(m.round||'').startsWith('Group') && m.state === 'post'
+    && !m.home.tbd && !m.away.tbd);
+  for (const m of koPosts) {
+    const w = m.home.winner ? m.home.name : m.away.winner ? m.away.name : null;
+    if (!w) continue;
+    key.koPlayed++;
+    const rd = koRoundOf(m);
+    if (rd === 'r32') key.reached.r16.add(w);
+    else if (rd === 'r16') key.reached.qf.add(w);
+    else if (rd === 'qf') key.reached.sf.add(w);
+    else if (rd === 'sf') key.reached.fin.add(w);
+    else if (rd === 'fin') key.champ = w;
+    else if (rd === 'third') key.third = w;
+  }
+  return key;
+}
+
+// Teams a prediction sends through each round (winners of that round's matches),
+// ignoring any result flagged real (those came from Sync Real, not a guess).
+function predictedReached(s) {
+  const real = r => r && r.real;
+  const winOf = id => { const r = id==='final' ? (s.finals||{}).final : id==='third-place' ? (s.finals||{}).thirdPlace : (s.ko||{})[id]; return r && !real(r) ? r.winner : null; };
+  const collect = defs => defs.map(d => winOf(d.id)).filter(Boolean);
+  return {
+    r16: collect(R32_DEF), qf: collect(R16_DEF), sf: collect(QF_DEF), fin: collect(SF_DEF),
+    champ: winOf('final'), third: winOf('third-place'),
+  };
+}
+
+function scoreState(s, key) {
+  const out = { group:0, ko:0, total:0, groupHits:0, koHits:0 };
+  // Phase 1
+  for (const [g, real] of Object.entries(key.groups)) {
+    const grp = (s.groups||{})[g];
+    if (!grp || grp.real || !Array.isArray(grp.standings) || grp.standings.length < 2) continue;
+    const p1 = grp.standings[0]?.team, p2 = grp.standings[1]?.team;
+    if (p1 === real.first) { out.group += GROUP_PTS.first; out.groupHits++; }
+    else if (p1 === real.second) { out.group += GROUP_PTS.swap; out.groupHits++; }
+    if (p2 === real.second) { out.group += GROUP_PTS.second; out.groupHits++; }
+    else if (p2 === real.first) { out.group += GROUP_PTS.swap; out.groupHits++; }
+    if (key.thirds) {
+      const p3 = grp.standings[2]?.team;
+      const tipped = (s.selectedThirds||[]).includes(p3);
+      if (p3 && tipped && key.thirds.has(p3)) { out.group += GROUP_PTS.third; out.groupHits++; }
+    }
+  }
+  // Phase 2
+  const pr = predictedReached(s);
+  for (const rd of ['r16','qf','sf','fin']) {
+    for (const team of pr[rd]) if (key.reached[rd].has(team)) { out.ko += KO_REACH_PTS[rd]; out.koHits++; }
+  }
+  if (pr.champ && key.champ && pr.champ === key.champ) { out.ko += KO_REACH_PTS.champ; out.koHits++; }
+  if (pr.third && key.third && pr.third === key.third) { out.ko += KO_REACH_PTS.third; out.koHits++; }
+  out.total = out.group + out.ko;
+  return out;
+}
+
+// ─── PUBLISH (inline modal — robust on mobile, no prompt()) ───
+function openPublishModal() {
   if (viewing) { showToast(`You're viewing ${viewing.name}'s bracket — go back to yours first`); return; }
-  if (!state.finals.final) { showToast('Finish your bracket first — it needs a champion 🏆'); return; }
-  const name = prompt('Name to publish under:', localStorage.getItem('wcPublishName') || '');
-  if (!name || !name.trim()) return;
-  try { localStorage.setItem('wcPublishName', name.trim()); } catch {}
+  if (!bracketHasPicks()) { showToast('Make some picks first — fill a group or the bracket, then publish'); return; }
+  const input = document.getElementById('publish-name');
+  input.value = state.name || localStorage.getItem('wcPublishName') || '';
+  const champ = state.finals.final ? state.finals.final.winner : null;
+  document.getElementById('publish-modal-sub').textContent = champ
+    ? `Champion: ${TEAMS[champ]?.flag||''} ${champ}. Name it so friends can find you on the leaderboard.`
+    : 'Group-stage picks publish fine — you can finish the knockouts and re-publish later.';
+  document.getElementById('modal-overlay').classList.add('show');
+  setTimeout(() => input.focus(), 50);
+}
+function closePublishModal() { document.getElementById('modal-overlay').classList.remove('show'); }
+
+async function submitPublish() {
+  const name = (document.getElementById('publish-name').value || '').trim();
+  if (!name) { showToast('Enter a name to publish under'); return; }
+  try { localStorage.setItem('wcPublishName', name); } catch {}
+  state.name = name;
+  saveMyBracket(state);  // keep a local copy too
+  let payload;
+  try {
+    payload = {
+      name,
+      hash: encodeHash(stripStateForShare()),
+      champion: (state.finals.final && state.finals.final.winner) || '',
+      runnerUp: (state.finals.final && state.finals.final.loser) || '',
+      mode: 'pick',
+    };
+  } catch { showToast('Could not encode this bracket — try again'); return; }
+  closePublishModal();
+  showToast('Publishing…');
   try {
     const r = await fetch('/api/brackets', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: name.trim(),
-        hash: encodeHash(stripStateForShare()),
-        champion: state.finals.final.winner,
-        runnerUp: state.finals.final.loser,
-        mode: state.mode,
-      }),
+      body: JSON.stringify(payload),
     });
-    if (!r.ok) throw new Error();
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || 'rejected');
     explore.fetched = false;
-    showToast('Bracket published! 🌍 See it on the Explore tab');
-  } catch {
-    showToast('Could not publish — shared storage unavailable');
+    saveState();
+    showToast('Published! 🌍 Opening Global Brackets…');
+    setTab('explore');
+    refreshExplore();
+  } catch (e) {
+    showToast('Could not publish — storage unavailable. Your bracket is saved locally.');
   }
 }
+
+// ─── MY BRACKETS (local collection shown on Global Brackets) ──
+function getMyBrackets() { return lsGet('wcMyBrackets', []); }
+function saveMyBracket(s) {
+  const list = getMyBrackets();
+  const slim = stripStateForShare(s);
+  const entry = { name: s.name || 'My bracket', ts: Date.now(),
+    champion: (s.finals && s.finals.final && s.finals.final.winner) || '',
+    runnerUp: (s.finals && s.finals.final && s.finals.final.loser) || '',
+    hash: encodeHash(slim) };
+  // de-dupe by name (newest wins), cap 20
+  const rest = list.filter(b => (b.name||'').toLowerCase() !== entry.name.toLowerCase());
+  rest.unshift(entry);
+  lsSet('wcMyBrackets', rest.slice(0, 20));
+}
+function deleteMyBracket(ts) {
+  lsSet('wcMyBrackets', getMyBrackets().filter(b => b.ts !== ts));
+  renderExplore();
+}
+
+// ─── GLOBAL BRACKETS (leaderboard) ───────────────────────────
+let gbTab = 'total';  // total | group | ko
+function setGbTab(t) { gbTab = t; renderExplore(); }
 
 async function refreshExplore() {
   if (explore.loading) return;
@@ -2032,42 +2376,90 @@ async function refreshExplore() {
   renderExplore();
 }
 
-function renderExplore() {
-  document.getElementById('explore-meta').textContent = explore.loading ? 'Loading…' : '';
-  const grid = document.getElementById('explore-grid');
-  if (!explore.list.length) {
-    grid.innerHTML = `<p class="live-empty">${explore.error ? explore.error
-      : explore.loading ? 'Loading brackets…'
-      : 'No brackets published yet — be the first! Finish yours and hit 🌍 Publish.'}</p>`;
-    return;
-  }
-  grid.innerHTML = explore.list.map((b, i) => `
-    <div class="explore-card" onclick="viewSharedBracket(${i})">
-      <div class="explore-champ-flag">${TEAMS[b.champion]?.flag || '🏆'}</div>
-      <div class="explore-champ">${escapeHTML(b.champion) || '?'}</div>
-      <div class="explore-sub">over ${escapeHTML(b.runnerUp) || '?'} in the Final</div>
-      <div class="explore-owner">${escapeHTML(b.name)} <span class="explore-mode">${b.mode === 'ai' ? '🤖 AI' : '👆 Picked'}</span></div>
-      <div class="explore-sub">${timeAgo(b.ts)}</div>
-    </div>`).join('');
+function scoredEntries() {
+  const key = buildAnswerKey();
+  const live_ = key.groupsDecided > 0 || key.koPlayed > 0;
+  const decode = b => { try { return sanitizeBracketState(decodeHash(b.hash)); } catch { return null; } };
+  const mineHashes = new Set(getMyBrackets().map(b => b.hash));
+  // published entries first; flag the ones that are also mine. Then add any of
+  // my local brackets that were never published, so unpublished drafts still show.
+  const published = explore.list.map(b => ({ ...b, mine: mineHashes.has(b.hash) }));
+  const publishedHashes = new Set(explore.list.map(b => b.hash));
+  const localOnly = getMyBrackets().filter(b => !publishedHashes.has(b.hash)).map(b => ({ ...b, mine:true, localOnly:true }));
+  const all = [...published, ...localOnly];
+  const rows = all.map(b => {
+    const s = decode(b);
+    const sc = s ? scoreState(s, key) : { total:0, group:0, ko:0 };
+    return { b, s, sc };
+  });
+  const sortKey = gbTab === 'group' ? 'group' : gbTab === 'ko' ? 'ko' : 'total';
+  rows.sort((a, z) => z.sc[sortKey] - a.sc[sortKey] || (z.b.ts||0) - (a.b.ts||0));
+  return { rows, live: live_, key, sortKey };
 }
 
-function viewSharedBracket(i) {
-  const b = explore.list[i];
-  if (!b) return;
-  let loaded;
-  try { loaded = sanitizeBracketState(decodeHash(b.hash)); } catch { loaded = null; }
+function renderExplore() {
+  const meta = document.getElementById('explore-meta');
+  const tabsEl = document.getElementById('gb-tabs');
+  const grid = document.getElementById('explore-grid');
+  const tabs = [['total','🏆 Overall'],['group','Phase 1 · Groups'],['ko','Phase 2 · Knockouts']];
+  tabsEl.innerHTML = tabs.map(([k,l]) =>
+    `<button class="chip${gbTab===k?' active':''}" onclick="setGbTab('${k}')">${l}</button>`).join('');
+
+  if (explore.loading && !explore.list.length) { grid.innerHTML = '<p class="live-empty">Loading brackets…</p>'; meta.textContent='Loading…'; return; }
+  meta.textContent = '';
+  const { rows, live: hasReal, key, sortKey } = scoredEntries();
+  if (!rows.length) {
+    grid.innerHTML = `<p class="live-empty">${explore.error || 'No brackets yet — hit 🌍 Publish to be the first on the board.'}</p>`;
+    return;
+  }
+  const note = hasReal
+    ? `Scored against real results so far · ${key.groupsDecided}/12 groups decided, ${key.koPlayed} knockout games in`
+    : 'No real results yet — scores stay 0 until games are played. Order shown by recency.';
+  const idxInList = b => explore.list.indexOf(explore.list.find(x => x.hash === b.hash && x.name === b.name));
+  grid.innerHTML = `<p class="lb-note" style="font-size:12px;color:var(--muted);margin:0 0 10px">${note}</p>
+    <div class="lb-list">${rows.map((row, i) => {
+      const { b, sc } = row;
+      const shown = sc[sortKey];
+      const champ = b.champion ? `${TEAMS[b.champion]?.flag||'🏆'} ${escapeHTML(b.champion)}` : 'group-stage only';
+      const onclick = b.localOnly ? `viewMyBracket(${b.ts})` : `viewSharedBracket(${idxInList(b)})`;
+      return `<div class="lb-row${i<3 && hasReal ? ' lb-top' : ''}" onclick="${onclick}">
+        <div class="lb-rank">${hasReal ? '#'+(i+1) : '•'}</div>
+        <div class="lb-champ">${TEAMS[b.champion]?.flag || '🏆'}</div>
+        <div class="lb-main">
+          <div class="lb-name">${escapeHTML(b.name)}${b.mine ? '<span class="lb-mine">YOU</span>' : ''}</div>
+          <div class="lb-sub">${champ} · ${timeAgo(b.ts)}</div>
+        </div>
+        <div class="lb-score">
+          <div class="lb-score-num">${shown}</div>
+          <div class="lb-score-lbl">${sortKey==='group'?'group pts':sortKey==='ko'?'KO pts':'total pts'}</div>
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+}
+
+function loadIntoViewer(loaded, name) {
   if (!loaded) { showToast('Could not load that bracket'); return; }
   if (!viewing) myBracketBackup = JSON.parse(JSON.stringify(state));
-  viewing = { name: b.name };
+  viewing = { name };
   state = loaded;
   pickState = {};
-  document.getElementById('btn-ai').classList.toggle('active', state.mode === 'ai');
-  document.getElementById('btn-pick').classList.toggle('active', state.mode === 'pick');
-  document.getElementById('viewing-name').textContent = `${b.name}'s bracket`;
+  document.getElementById('viewing-name').textContent = `${name}'s bracket`;
   document.getElementById('viewing-banner').style.display = '';
   setTab('bracket');
   renderAll();
   window.scrollTo({ top: 0 });
+}
+function viewSharedBracket(i) {
+  const b = explore.list[i];
+  if (!b) return;
+  let loaded; try { loaded = sanitizeBracketState(decodeHash(b.hash)); } catch { loaded = null; }
+  loadIntoViewer(loaded, b.name);
+}
+function viewMyBracket(ts) {
+  const b = getMyBrackets().find(x => x.ts === ts);
+  if (!b) return;
+  let loaded; try { loaded = sanitizeBracketState(decodeHash(b.hash)); } catch { loaded = null; }
+  loadIntoViewer(loaded, b.name);
 }
 
 function exitViewing() {
@@ -2075,8 +2467,6 @@ function exitViewing() {
   viewing = null;
   myBracketBackup = null;
   pickState = {};
-  document.getElementById('btn-ai').classList.toggle('active', state.mode === 'ai');
-  document.getElementById('btn-pick').classList.toggle('active', state.mode === 'pick');
   document.getElementById('viewing-banner').style.display = 'none';
   renderAll();
 }
@@ -3044,7 +3434,8 @@ function moversHTML() {
 function stripStateForShare(s = state) {
   const slim = r => r ? { winner: r.winner, loser: r.loser, prob: r.prob, real: r.real, score: r.score } : null;
   return {
-    mode: s.mode,
+    mode: 'pick',
+    name: s.name || '',
     picks: s.picks,
     groups: s.groups,
     ko: Object.fromEntries(Object.entries(s.ko || {}).map(([k, v]) => [k, slim(v)])),
@@ -3052,6 +3443,7 @@ function stripStateForShare(s = state) {
     awards: s.awards,
     selectedThirds: s.selectedThirds,
     thirdAssign: s.thirdAssign || null,
+    koFromReal: !!s.koFromReal,
   };
 }
 
@@ -3097,12 +3489,12 @@ function showToast(msg) {
 
 // ─── INIT ─────────────────────────────────────────────────────
 loadState();
-document.getElementById('btn-ai').classList.toggle('active', state.mode === 'ai');
-document.getElementById('btn-pick').classList.toggle('active', state.mode === 'pick');
+state.mode = 'pick';
 renderAll();
 loadLiveCache();
 computeRatings();
-refreshLive(false); // prime today's scores + live indicator dot on the Matches tab
+// once live results land, refresh the scoreboard/leaderboard against them
+refreshLive(false).then(() => { renderScoreboard(); renderSeedButton(); }); // prime scores + live dot
 </script>
 </body>
 </html>

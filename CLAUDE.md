@@ -35,33 +35,61 @@ live at world-cup-bracket-picker.vercel.app). `gh` and `vercel` CLIs are at
 - `vercel.json` — rewrites pinning the `/api/*` paths ahead of the catch-all
   `/(.*) → /index.html`; edit it when adding a new API route
 
+It's a **pick-only, score-oriented** game (March-Madness style): you predict, then
+get scored against the real results. There is **no AI mode** — `state.mode` is always
+`'pick'` (the field is kept only for back-compat in old share hashes; `simulateAll()`
+is now a local odds-based **Auto-fill**, the Claude `/api/simulate` + `/api/final`
+routes and `callSimulate`/`callFinal` are dead code left in place).
+
 ### Bracket state model (`state` in index.html)
 
-`{ mode: 'ai'|'pick', groups, picks, ko, finals: {final, thirdPlace}, awards,
-selectedThirds, thirdAssign }`. Group entries are `{done, standings, real?, live?,
-played?}` — `live:true` means a partial real-results table that renders but does NOT
-resolve the bracket (only `done:true` does). Match results are
-`{winner, loser, prob, reasoning, real?, score?}`.
+`{ mode:'pick', name, groups, picks, ko, finals:{final, thirdPlace}, awards,
+selectedThirds, thirdAssign, koFromReal }`. Group entries are `{done, standings, real?,
+live?, played?}` — `live:true` means a partial real-results table that renders but does
+NOT resolve the bracket (only `done:true` does). Match results are
+`{winner, loser, prob, reasoning, real?, score?}`. `freshState()` is the canonical
+empty bracket. `name` labels a bracket on the leaderboard; `koFromReal` is the Phase-2
+toggle (below).
 
 Bracket slots resolve through a small grammar in `resolveSlot()`: `'1A'`/`'2B'`
 (group position), `'3rd:A/B/C/D/F'` (third-place slot, eligibility in `THIRD_SLOTS`),
-`'W:r32-5'`/`'L:sf-1'` (winner/loser of match id). `assignThirds()` checks
-`state.thirdAssign` (real FIFA allocation captured from ESPN's actual R32 fixtures by
-Sync Real) before falling back to eligibility-order assignment. Bracket cards are
-absolutely positioned via `MATCH_ROW` row indices; SVG connectors are drawn per render.
+`'W:r32-5'`/`'L:sf-1'` (winner/loser of match id). When `state.koFromReal` is on,
+`getGroupStandings()` returns the **real** group tables (`realStandings()`) instead of
+your picks, so the knockout bracket is seeded from the actual qualifiers — a second
+tournament independent of Phase 1. `assignThirds()` checks `state.thirdAssign` (real
+FIFA allocation captured from ESPN's actual R32 fixtures by Sync Real) before falling
+back to eligibility-order assignment. Bracket cards are absolutely positioned via
+`MATCH_ROW` row indices; SVG connectors are drawn per render.
+
+### Scoring (two "tournaments", March-Madness style)
+
+`buildAnswerKey()` derives reality **purely from the ESPN live feed** (`live.matches`),
+never from anyone's picks: real group standings per decided group, the real best-8
+thirds (once all 12 groups final), and per-round "reached" sets for knockouts
+(`koRoundOf()` classifies a finished KO match by ESPN round label, falling back to date
+windows). `scoreState(s, key)` compares a prediction to that key:
+- **Phase 1 (Group Stage)**: exact 1st +5, exact 2nd +3, right team / wrong slot +2,
+  each correctly-tipped 3rd-place qualifier +2 (`GROUP_PTS`).
+- **Phase 2 (Knockouts)**: every team you correctly send THROUGH a round, escalating —
+  reach R16 +2, QF +4, SF +8, Final +16, champion +32, 3rd-place match +8
+  (`KO_REACH_PTS`, via `predictedReached()`).
+Results flagged `real:true` (pulled in by Sync Real) are **skipped** so syncing never
+inflates your own score. `renderScoreboard()` shows the live tally on the bracket view
+(hidden until any real result exists); the same function powers the leaderboard.
 
 ### Share links, persistence, and the sanitizer coupling
 
 - Full state persists to localStorage; the URL hash carries a **slimmed** copy from
   `stripStateForShare()` (drops AI reasoning), encoded UTF-8-safe by
   `encodeHash()`/`decodeHash()` (plain `btoa` breaks on Unicode in reasoning text).
-- All externally-sourced states (share-link hashes, Explore entries) pass through
+- All externally-sourced states (share-link hashes, Global-Brackets entries) pass through
   `sanitizeBracketState()`, which whitelists team names against `TEAMS` and nulls
   reasoning/awards — these reach `innerHTML`, so this is the XSS barrier.
 - `loadState()` detects "own" hashes by re-encoding localStorage through
   `stripStateForShare()` and comparing; own state loads at full fidelity.
 - **Gotcha: a new `state` field must be added to BOTH `stripStateForShare()` and
-  `sanitizeBracketState()`** or it silently disappears from share links and Explore views.
+  `sanitizeBracketState()`** or it silently disappears from share links and Global
+  Brackets (`name` and `koFromReal` are carried by both).
 
 ### Live data (Matches tab, Sync Real, dynamic ratings)
 
@@ -143,13 +171,29 @@ sources wins, and feed quotes overwrite stored prices (they ARE the current
 cheapest ask). With ≥3 priced games, value tags (UNDERPRICED/FAIR/RICH) compare
 $/demand vs the median (`medianVpd()`).
 
-### Shared brackets (Explore)
+### Global Brackets (the `#view-explore` tab — leaderboard)
 
-One JSON array under KV key `wc2026:brackets`. `server.py` uses Vercel KV via REST
-(stdlib urllib) when `KV_REST_API_URL`+`KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_*`)
-exist, else `brackets.local.json` (gitignored). One bracket per name (newest wins,
-case-insensitive), capped at 100. POST `{"name": X, "remove": true}` unpublishes —
-no auth, friend-group toy.
+Storage: one JSON array under KV key `wc2026:brackets`. `server.py` uses Vercel KV via
+REST (stdlib urllib) when `KV_REST_API_URL`+`KV_REST_API_TOKEN` (or
+`UPSTASH_REDIS_REST_*`) exist, else `brackets.local.json` (gitignored). One bracket per
+name (newest wins, case-insensitive), capped at 100. POST `{"name": X, "remove": true}`
+unpublishes — no auth, friend-group toy. Prod KV is confirmed working; if "publish
+seems broken" it's almost always client-side, not storage.
+
+UI: `renderExplore()` is a **leaderboard**, not a grid — `scoredEntries()` decodes every
+published bracket's hash, runs `scoreState()` against the current answer key, and ranks
+by the active `gbTab` (`total`/`group`/`ko`). Your locally-saved brackets
+(`wcMyBrackets`) are merged in and flagged `YOU`; unpublished local drafts also show
+(`localOnly`), deduped against published entries by hash. Until a real result exists,
+rows sort by recency and all show 0.
+
+- **Publish** (`openPublishModal()` → `submitPublish()`): an **inline modal**, not
+  `prompt()` — `prompt()` is silently suppressed in many mobile/in-app browsers, which
+  was the old "publish doesn't work for friends" bug. Partial (group-stage-only)
+  brackets publish fine (empty `champion`). Publishing also banks a local copy.
+- **New Bracket** (`newBracket()`, the old Reset): banks the current bracket into
+  `wcMyBrackets` (via `saveMyBracket()`), then starts a `freshState()` — so you can keep
+  several entries (one per pool). `bracketHasPicks()` gates both publish and banking.
 
 ## Vercel environment notes
 
