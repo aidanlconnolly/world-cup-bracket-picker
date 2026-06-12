@@ -9,10 +9,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 pip install -r requirements.txt
-python3 server.py          # http://localhost:3000 — runs without ANTHROPIC_API_KEY
-                           # (AI endpoints then return 503; everything else works)
-ANTHROPIC_API_KEY=sk-... python3 server.py   # with AI mode
+python3 server.py          # http://localhost:3000 — no API key needed
 ```
+
+The app no longer has an AI mode, so `ANTHROPIC_API_KEY` is irrelevant to normal use;
+the `/api/simulate` + `/api/final` Claude routes (and `callSimulate`/`callFinal`) are
+vestigial — nothing in the UI calls them.
 
 No build step, lint, or tests — `index.html` is a single self-contained file with all
 CSS/JS inline. Verify changes by loading the page (see Preview caveat below).
@@ -200,14 +202,14 @@ rows sort by recency and all show 0.
 - The KV store `upstash-kv-amethyst-anchor` is connected to this project (env vars are
   integration-managed, type *sensitive* — values can never be read back via CLI/API).
   It's shared with penalty-shootout and finance-tracker; keys are namespaced by prefix.
-- The project has **no `ANTHROPIC_API_KEY`** env var (there's an odd one named
-  `world_cup_picker` that may hold the key under the wrong name) — prod AI mode 503s
-  gracefully until that's fixed in the dashboard.
+  **Publish to `/api/brackets` is confirmed working in prod** — verified via POST/GET.
+- No `ANTHROPIC_API_KEY` is set, which no longer matters (AI mode is gone). The two
+  Claude routes just 503 if ever hit; nothing in the UI hits them.
 
 ## Preview caveat
 
 The Claude Code preview runner cannot read this Desktop folder (macOS TCC), so
 `.claude/launch.json` runs a scratch copy from `/tmp/wc-bracket-preview` (Flask
-`server.py`, so /api/brackets works; no ANTHROPIC_API_KEY → AI endpoints 503).
-Re-copy `index.html` (and `server.py`/`api/` if changed) there after edits when
-previewing. For real local dev, run `python3 server.py` directly.
+`server.py`, so /api/brackets + /api/prices work). Re-copy `index.html` (and
+`server.py`/`api/` if changed) there after edits when previewing. For real local dev,
+run `python3 server.py` directly.
