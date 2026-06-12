@@ -439,6 +439,10 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 .tk-val { font-size: 9px; font-weight: 700; border-radius: 4px; padding: 1px 5px; margin-left: 4px; background: rgba(255,255,255,0.08); color: var(--muted); }
 .tk-val-under { background: rgba(46,204,113,0.2); color: #2ecc71; }
 .tk-val-rich { background: rgba(255,107,107,0.18); color: #ff6b6b; }
+.tk-th-bar { width: 100%; margin: 8px 0 2px; }
+.tk-th-game { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+.tk-th-game + .tk-th-game { border-top: 1px solid rgba(255,255,255,0.06); }
+.tk-th-game .tk-label { font-size: 12px; }
 .tk-city-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 6px; margin-top: 6px; }
 .tk-city-stats > div { display: flex; flex-direction: column; }
 .tk-city-num { font-size: 16px; font-weight: 700; color: var(--gold); }
@@ -2317,7 +2321,7 @@ function renderTickets() {
   const body = document.getElementById('tickets-body');
   if (!mc.runs) { body.innerHTML = '<p class="live-empty">No simulation data yet.</p>'; return; }
   _rowsCache = null;
-  body.innerHTML = sinceYesterdayHTML() + inventoryHTML() + cityBoardHTML()
+  body.innerHTML = thesesHTML() + sinceYesterdayHTML() + inventoryHTML() + cityBoardHTML()
     + hotTicketsHTML() + matchExplorerHTML() + reachMatrixHTML() + moversHTML();
 }
 
@@ -2489,6 +2493,102 @@ async function fetchSeatGeekPrices() {
   } catch {
     showToast('SeatGeek fetch failed — check your client_id');
   }
+}
+
+// 00 — investment theses: archetype playbook, ranked by edge
+// A thesis = one repeatable reason to own a class of tickets. Games are
+// bucketed by archetype traits (a game may serve several theses); each thesis
+// scores edge = conviction × avg demand of its top targets + their momentum
+// vs the last daily snapshot. Conviction discounts event risk: locked
+// matchups carry none, lottery exposure carries a lot.
+function thesisList() {
+  const prev = prevDailySnapshot();
+  const trendOf = r => { const pe = prev && prev.m[r.key]; return pe ? r.score - pe.d : 0; };
+  const hostAt = r => {
+    const vc = venueCountry(r.venue);
+    const host = vc === 'US' ? 'USA' : vc === 'MX' ? 'Mexico' : 'Canada';
+    const e = r.top.find(x => x.team === host);
+    return e && e.p >= 0.005 ? { host, p: e.p, ev: e.p * demandWeight(host, r.venue) } : null;
+  };
+  const lotteryPick = r => {
+    if (r.kind !== 'ko' || r.locked) return null;
+    let best = null;
+    for (const x of r.top) {
+      if ((DEMAND[x.team] ?? 4) < 8 || x.p < 0.15 || x.p > 0.75) continue;
+      const u = demandWeight(x.team, r.venue) * x.p * (1 - x.p) * 4; // peaks at coin-flips
+      if (!best || u > best.u) best = { team: x.team, p: x.p, u };
+    }
+    return best;
+  };
+  const med = medianVpd();
+  const defs = [
+    { icon:'🔒', name:'Blue-chip locks', conviction:1.0,
+      why:'Both teams confirmed and demand is heavyweight — zero elimination risk; buy fair, sell into the kickoff scarcity ramp.',
+      test: r => r.locked && r.score >= 12,
+      edge: r => r.score,
+      stat: r => `demand ${r.score.toFixed(1)} · teams locked` },
+    { icon:'🏠', name:'Host-nation gravity', conviction:0.95,
+      why:'USA, Mexico or Canada drawing toward a home venue — the domestic-fanbase 1.5× sets a demand floor the resale market always pays.',
+      test: r => { const h = hostAt(r); return !!h && h.ev >= 6; },
+      edge: r => hostAt(r).ev,
+      stat: r => { const h = hostAt(r); return `${TEAMS[h.host]?.flag || ''} ${h.host} ${pct(h.p)} to appear at home`; } },
+    { icon:'🏟', name:'Small-building squeeze', conviction:0.9,
+      why:'Real demand against the smallest stadiums in the tournament — supply does the work, so get-in prices stay stiff even on bad news.',
+      test: r => { const v = VENUES[venueKey(r.venue)]; return !!v && v.cap <= 56000 && r.score >= 7; },
+      edge: r => r.score / VENUES[venueKey(r.venue)].cap * 1000,
+      stat: r => `${(r.score / VENUES[venueKey(r.venue)].cap * 1000).toFixed(2)} demand/1k seats · ${Math.round(VENUES[venueKey(r.venue)].cap / 1000)}k cap` },
+    { icon:'🏆', name:'Trophy rounds', conviction:0.85,
+      why:'Semis and the final sell on the round, not the matchup — team risk barely matters because the event itself is the product.',
+      test: r => r.round === 'Semifinal' || r.round === 'Final',
+      edge: r => r.score,
+      stat: r => r.driver },
+    { icon:'🎰', name:'Superpower lottery', conviction:0.65,
+      why:'A giant fanbase at 15–75% to land in this game — buy before the path locks: if they arrive the ticket reprices, if not you eat the loss.',
+      test: r => !!lotteryPick(r),
+      edge: r => lotteryPick(r).u,
+      stat: r => { const l = lotteryPick(r); return `${TEAMS[l.team]?.flag || ''} ${l.team} ${pct(l.p)} to appear — repricing if it lands`; } },
+    { icon:'📈', name:'Momentum rides', conviction:0.8,
+      why:'Demand rising vs the last daily snapshot — results are still repricing these; ride the move, exit when the trend flattens.',
+      test: r => trendOf(r) >= 0.5,
+      edge: r => trendOf(r),
+      stat: r => `demand +${trendOf(r).toFixed(1)} since yesterday` },
+  ];
+  if (med) defs.push({ icon:'💸', name:'Mispriced paper', conviction:1.1,
+    why:'Entered get-in prices trading well under the median $ per demand point — the cheapest exposure on the board regardless of story.',
+    test: r => prices[r.key] > 0 && (prices[r.key] / Math.max(r.score, 0.1)) < med * 0.85,
+    edge: r => med / (prices[r.key] / Math.max(r.score, 0.1)),
+    stat: r => `$${prices[r.key]} · ${Math.round((1 - (prices[r.key] / Math.max(r.score, 0.1)) / med) * 100)}% under median $/demand` });
+
+  const rows = gameRows();
+  return defs.map(d => {
+    const games = rows.filter(d.test).sort((a, b) => d.edge(b) - d.edge(a));
+    const top = games.slice(0, 5);
+    const avgD = top.length ? top.reduce((s, r) => s + r.score, 0) / top.length : 0;
+    const avgT = top.length ? top.reduce((s, r) => s + trendOf(r), 0) / top.length : 0;
+    return { ...d, games, score: d.conviction * avgD + avgT };
+  }).filter(d => d.games.length).sort((a, b) => b.score - a.score);
+}
+
+function thesesHTML() {
+  const list = thesisList();
+  if (!list.length) return '';
+  const max = list[0].score || 1;
+  return `<h3 class="tk-h">🧭 Theses <span class="tk-sub">archetype playbook, ranked — edge = conviction × demand of top targets + momentum · a game can serve several theses</span></h3>
+  <div class="tk-explorer">${list.map((d, i) => `
+    <div class="tk-match">
+      <div class="tk-match-head"><span>#${i + 1} ${d.icon} ${d.name}</span><span class="tk-score">${d.score.toFixed(1)}</span></div>
+      <div class="tk-bar tk-th-bar"><div class="tk-bar-fill" style="width:${Math.round(d.score / max * 100)}%"></div></div>
+      <div class="tk-match-venue">${d.why}</div>
+      ${d.games.slice(0, 3).map(r => `
+        <div class="tk-th-game">
+          <div class="tk-main">
+            <div class="tk-label">${r.label}</div>
+            <div class="tk-detail">${fmtKickoff(r.date)} · ${d.stat(r)}</div>
+          </div>
+          <button class="tk-star${watchlist[r.key] ? ' on' : ''}" onclick="toggleWatch('${r.key}')" title="add to inventory">${watchlist[r.key] ? '★' : '☆'}</button>
+        </div>`).join('')}
+      ${d.games.length > 3 ? `<div class="tk-detail" style="margin-top:6px">+${d.games.length - 3} more qualify</div>` : ''}
+    </div>`).join('')}</div>`;
 }
 
 // 0 — starred holdings with hold/sell signals and P/L

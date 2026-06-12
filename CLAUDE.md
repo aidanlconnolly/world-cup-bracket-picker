@@ -99,6 +99,11 @@ each round).
 KO slots by match id), the spine for all Tickets views. Demand = Σ P×`DEMAND` weight,
 hosts ×1.5 at home venues (`VENUES` capacities + `DEMAND` fanbase weights are editable
 guesses). Views, top to bottom:
+- **Theses**: `thesisList()` buckets `gameRows()` into investment archetypes
+  (blue-chip locks, host gravity, small-building squeeze, trophy rounds, superpower
+  lottery, momentum rides, mispriced paper — the last only with ≥3 entered prices);
+  overlap allowed. Ranked by edge = conviction × avg demand of the top-5 qualifying
+  games + their trend vs yesterday; empty theses are hidden.
 - **Since yesterday**: demand + appearance-prob moves vs the most recent prior daily
   snapshot (`wcMCSnaps`, ≤21 days kept; `saveDailySnapshot()` writes today's after each
   run; `prevDailySnapshot()` reads the latest day `< today`).
