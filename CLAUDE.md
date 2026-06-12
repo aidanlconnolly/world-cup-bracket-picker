@@ -80,6 +80,23 @@ Winner") render as TBD.
   recomputed in `computeRatings()` after every fetch; rendered as ▲/▼ deltas and used
   by all simulations.
 
+### Ticket analytics (Tickets tab)
+
+Monte Carlo over the remaining tournament (5,000 sims, ~600 ms, synchronous in
+`runTicketsMC()`), independent of the user's bracket picks. Anchoring, in priority
+order: finished matches are locked (`koLocks` by team pair), partially-played groups
+start from real points/GD (`buildMCInputs()`), and any fixture with posted odds uses
+DraftKings 3-way moneylines from ESPN (`comp.odds[0].moneyline`, vig-normalized in
+`normalizeEvent()` → `m.odds`) instead of the model; everything else uses
+`effectiveProb()`. KO through-prob with odds = P(win 90') + P(draw)×strength-split.
+Outputs: `mc.matchProbs[matchId]` (P(team appears in each physical game)) and
+`mc.teamRounds` (round-reach + champion). Views: Hot Tickets (demand = Σ P×`DEMAND`
+weight, hosts ×1.5 at home venues — weights are editable guesses), per-match explorer,
+reach matrix, title-odds movers vs previous run (`wcMCPrev` in localStorage).
+KO defs carry exact `date:` kickoffs extracted from ESPN fixtures (R32 mapped via
+bracket-slot placeholder names; R16+ via venue, unique within each round).
+`mc` is derived data, NOT part of `state` — no share/sanitizer coupling.
+
 ### Shared brackets (Explore)
 
 One JSON array under KV key `wc2026:brackets`. `server.py` uses Vercel KV via REST

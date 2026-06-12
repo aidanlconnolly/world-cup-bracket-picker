@@ -375,6 +375,43 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 }
 .explore-mode { font-size: 10px; font-weight: 400; background: rgba(255,255,255,0.08); border-radius: 4px; padding: 1px 6px; color: var(--muted); }
 
+/* TICKET ANALYTICS */
+.tk-h { font-size: 16px; font-weight: 700; margin: 26px 0 12px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.tk-h:first-child { margin-top: 0; }
+.tk-sub { font-size: 11px; color: var(--muted); font-weight: 400; }
+.tk-board { display: flex; flex-direction: column; gap: 6px; }
+.tk-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--card-bg); border: 1px solid var(--card-border);
+  border-radius: 8px; padding: 8px 14px;
+}
+.tk-rank { font-size: 13px; font-weight: 700; color: var(--gold); min-width: 22px; text-align: right; }
+.tk-main { flex: 1; min-width: 0; }
+.tk-label { font-size: 13px; font-weight: 600; }
+.tk-detail { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-bar { width: 120px; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; flex-shrink: 0; }
+.tk-bar-fill { height: 100%; background: linear-gradient(90deg, #e8a020, var(--gold)); }
+.tk-score { font-size: 12px; font-weight: 700; color: var(--gold); min-width: 34px; text-align: right; }
+.tk-explorer { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.tk-match { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px 14px; }
+.tk-match-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 0.5px; }
+.tk-locked { background: rgba(46,204,113,0.2); color: #2ecc71; border-radius: 4px; padding: 1px 6px; font-size: 9px; }
+.tk-match-venue { font-size: 10.5px; color: var(--muted); margin: 4px 0 10px; line-height: 1.5; }
+.tk-team-p { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
+.tk-team-p > span:first-child { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-team-p.tk-host > span:first-child { color: var(--gold); font-weight: 700; }
+.tk-mini-bar { width: 60px; height: 5px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; flex-shrink: 0; }
+.tk-mini-bar > div { height: 100%; background: var(--gold); }
+.tk-pct { font-size: 11px; font-weight: 700; min-width: 34px; text-align: right; }
+.tk-matrix-wrap { overflow-x: auto; }
+.tk-matrix { max-width: 720px; }
+.tk-matrix td, .tk-matrix th { padding: 5px 8px; }
+.tk-movers { display: flex; gap: 8px; flex-wrap: wrap; }
+.tk-mover {
+  background: var(--card-bg); border: 1px solid var(--card-border);
+  border-radius: 16px; padding: 5px 12px; font-size: 12px;
+}
+
 /* VIEWING BANNER */
 #viewing-banner {
   background: linear-gradient(90deg, rgba(255,215,0,0.12), rgba(255,215,0,0.04));
@@ -414,6 +451,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
     <button id="tab-btn-bracket" class="active" onclick="setTab('bracket')">Bracket</button>
     <button id="tab-btn-live" onclick="setTab('live')">Matches <span id="live-nav-dot" class="live-nav-dot" style="display:none"></span></button>
     <button id="tab-btn-explore" onclick="setTab('explore')">🌍 Explore</button>
+    <button id="tab-btn-tickets" onclick="setTab('tickets')">🎟 Tickets</button>
   </div>
   <div class="nav-links">
     <a href="#groups-section">Groups</a>
@@ -491,6 +529,18 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
   <div id="explore-grid"><p class="live-empty">Loading brackets…</p></div>
 </section>
 </div><!-- /view-explore -->
+
+<div id="view-tickets" style="display:none">
+<section id="tickets-section">
+  <h2>Ticket Analytics</h2>
+  <div class="live-controls">
+    <span style="font-size:13px;color:var(--muted)" id="mc-meta">Monte Carlo over the remaining tournament, anchored to real results + live odds</span>
+    <span class="live-updated" id="mc-updated"></span>
+    <button class="btn btn-gold" onclick="computeTickets(true)">⟳ Recompute</button>
+  </div>
+  <div id="tickets-body"><p class="live-empty">Open this tab to run simulations…</p></div>
+</section>
+</div><!-- /view-tickets -->
 
 <div id="toast"></div>
 
@@ -580,50 +630,52 @@ const GROUPS = {
   L: ['England','Croatia','Ghana','Panama'],
 };
 
+// Kickoff datetimes extracted from ESPN's fixture list (R32 mapped exactly via
+// bracket-slot placeholders; later rounds via venue, unique within each round).
 const R32_DEF = [
-  { id:'r32-1',  s1:'2A',            s2:'2B',            venue:'SoFi Stadium, Inglewood CA' },
-  { id:'r32-2',  s1:'1C',            s2:'2F',            venue:'NRG Stadium, Houston' },
-  { id:'r32-3',  s1:'1E',            s2:'3rd:A/B/C/D/F', venue:'Gillette Stadium, Boston' },
-  { id:'r32-4',  s1:'1F',            s2:'2C',            venue:'Estadio BBVA, Monterrey' },
-  { id:'r32-5',  s1:'2E',            s2:'2I',            venue:'AT&T Stadium, Dallas' },
-  { id:'r32-6',  s1:'1I',            s2:'3rd:C/D/F/G/H', venue:'MetLife Stadium, New Jersey' },
-  { id:'r32-7',  s1:'1A',            s2:'3rd:C/E/F/H/I', venue:'Estadio Azteca, Mexico City' },
-  { id:'r32-8',  s1:'1L',            s2:'3rd:E/H/I/J/K', venue:'Mercedes-Benz Stadium, Atlanta' },
-  { id:'r32-9',  s1:'1G',            s2:'3rd:A/E/H/I/J', venue:'Lumen Field, Seattle' },
-  { id:'r32-10', s1:'1D',            s2:'3rd:B/E/F/I/J', venue:"Levi's Stadium, San Francisco" },
-  { id:'r32-11', s1:'1H',            s2:'2J',            venue:'SoFi Stadium, Inglewood CA' },
-  { id:'r32-12', s1:'2K',            s2:'2L',            venue:'BMO Field, Toronto' },
-  { id:'r32-13', s1:'1B',            s2:'3rd:E/F/G/I/J', venue:'BC Place, Vancouver' },
-  { id:'r32-14', s1:'2D',            s2:'2G',            venue:'AT&T Stadium, Dallas' },
-  { id:'r32-15', s1:'1J',            s2:'2H',            venue:'Hard Rock Stadium, Miami' },
-  { id:'r32-16', s1:'1K',            s2:'3rd:D/E/I/J/L', venue:'Arrowhead Stadium, Kansas City' },
+  { id:'r32-1',  s1:'2A',            s2:'2B',            venue:'SoFi Stadium, Inglewood CA', date:'2026-06-28T19:00Z' },
+  { id:'r32-2',  s1:'1C',            s2:'2F',            venue:'NRG Stadium, Houston', date:'2026-06-29T17:00Z' },
+  { id:'r32-3',  s1:'1E',            s2:'3rd:A/B/C/D/F', venue:'Gillette Stadium, Boston', date:'2026-06-29T20:30Z' },
+  { id:'r32-4',  s1:'1F',            s2:'2C',            venue:'Estadio BBVA, Monterrey', date:'2026-06-30T01:00Z' },
+  { id:'r32-5',  s1:'2E',            s2:'2I',            venue:'AT&T Stadium, Dallas', date:'2026-06-30T17:00Z' },
+  { id:'r32-6',  s1:'1I',            s2:'3rd:C/D/F/G/H', venue:'MetLife Stadium, New Jersey', date:'2026-06-30T21:00Z' },
+  { id:'r32-7',  s1:'1A',            s2:'3rd:C/E/F/H/I', venue:'Estadio Azteca, Mexico City', date:'2026-07-01T01:00Z' },
+  { id:'r32-8',  s1:'1L',            s2:'3rd:E/H/I/J/K', venue:'Mercedes-Benz Stadium, Atlanta', date:'2026-07-01T16:00Z' },
+  { id:'r32-9',  s1:'1G',            s2:'3rd:A/E/H/I/J', venue:'Lumen Field, Seattle', date:'2026-07-01T20:00Z' },
+  { id:'r32-10', s1:'1D',            s2:'3rd:B/E/F/I/J', venue:"Levi's Stadium, San Francisco", date:'2026-07-02T00:00Z' },
+  { id:'r32-11', s1:'1H',            s2:'2J',            venue:'SoFi Stadium, Inglewood CA', date:'2026-07-02T19:00Z' },
+  { id:'r32-12', s1:'2K',            s2:'2L',            venue:'BMO Field, Toronto', date:'2026-07-02T23:00Z' },
+  { id:'r32-13', s1:'1B',            s2:'3rd:E/F/G/I/J', venue:'BC Place, Vancouver', date:'2026-07-03T03:00Z' },
+  { id:'r32-14', s1:'2D',            s2:'2G',            venue:'AT&T Stadium, Dallas', date:'2026-07-03T18:00Z' },
+  { id:'r32-15', s1:'1J',            s2:'2H',            venue:'Hard Rock Stadium, Miami', date:'2026-07-03T22:00Z' },
+  { id:'r32-16', s1:'1K',            s2:'3rd:D/E/I/J/L', venue:'Arrowhead Stadium, Kansas City', date:'2026-07-04T01:30Z' },
 ];
 
 const R16_DEF = [
-  { id:'r16-1', s1:'W:r32-1', s2:'W:r32-2',  venue:'NRG Stadium, Houston' },
-  { id:'r16-2', s1:'W:r32-3', s2:'W:r32-4',  venue:'Lincoln Financial Field, Philadelphia' },
-  { id:'r16-3', s1:'W:r32-5', s2:'W:r32-6',  venue:'MetLife Stadium, New Jersey' },
-  { id:'r16-4', s1:'W:r32-7', s2:'W:r32-8',  venue:'Estadio Azteca, Mexico City' },
-  { id:'r16-5', s1:'W:r32-9', s2:'W:r32-10', venue:'AT&T Stadium, Dallas' },
-  { id:'r16-6', s1:'W:r32-11',s2:'W:r32-12', venue:'Lumen Field, Seattle' },
-  { id:'r16-7', s1:'W:r32-13',s2:'W:r32-14', venue:'Mercedes-Benz Stadium, Atlanta' },
-  { id:'r16-8', s1:'W:r32-15',s2:'W:r32-16', venue:'BC Place, Vancouver' },
+  { id:'r16-1', s1:'W:r32-1', s2:'W:r32-2',  venue:'NRG Stadium, Houston', date:'2026-07-04T17:00Z' },
+  { id:'r16-2', s1:'W:r32-3', s2:'W:r32-4',  venue:'Lincoln Financial Field, Philadelphia', date:'2026-07-04T21:00Z' },
+  { id:'r16-3', s1:'W:r32-5', s2:'W:r32-6',  venue:'MetLife Stadium, New Jersey', date:'2026-07-05T20:00Z' },
+  { id:'r16-4', s1:'W:r32-7', s2:'W:r32-8',  venue:'Estadio Azteca, Mexico City', date:'2026-07-06T00:00Z' },
+  { id:'r16-5', s1:'W:r32-9', s2:'W:r32-10', venue:'AT&T Stadium, Dallas', date:'2026-07-06T19:00Z' },
+  { id:'r16-6', s1:'W:r32-11',s2:'W:r32-12', venue:'Lumen Field, Seattle', date:'2026-07-07T00:00Z' },
+  { id:'r16-7', s1:'W:r32-13',s2:'W:r32-14', venue:'Mercedes-Benz Stadium, Atlanta', date:'2026-07-07T16:00Z' },
+  { id:'r16-8', s1:'W:r32-15',s2:'W:r32-16', venue:'BC Place, Vancouver', date:'2026-07-07T20:00Z' },
 ];
 
 const QF_DEF = [
-  { id:'qf-1', s1:'W:r16-1', s2:'W:r16-2', venue:'Gillette Stadium, Boston' },
-  { id:'qf-2', s1:'W:r16-3', s2:'W:r16-4', venue:'SoFi Stadium, Inglewood CA' },
-  { id:'qf-3', s1:'W:r16-5', s2:'W:r16-6', venue:'Hard Rock Stadium, Miami' },
-  { id:'qf-4', s1:'W:r16-7', s2:'W:r16-8', venue:'Arrowhead Stadium, Kansas City' },
+  { id:'qf-1', s1:'W:r16-1', s2:'W:r16-2', venue:'Gillette Stadium, Boston', date:'2026-07-09T20:00Z' },
+  { id:'qf-2', s1:'W:r16-3', s2:'W:r16-4', venue:'SoFi Stadium, Inglewood CA', date:'2026-07-10T19:00Z' },
+  { id:'qf-3', s1:'W:r16-5', s2:'W:r16-6', venue:'Hard Rock Stadium, Miami', date:'2026-07-11T21:00Z' },
+  { id:'qf-4', s1:'W:r16-7', s2:'W:r16-8', venue:'Arrowhead Stadium, Kansas City', date:'2026-07-12T01:00Z' },
 ];
 
 const SF_DEF = [
-  { id:'sf-1', s1:'W:qf-1', s2:'W:qf-2', venue:'AT&T Stadium, Dallas' },
-  { id:'sf-2', s1:'W:qf-3', s2:'W:qf-4', venue:'Mercedes-Benz Stadium, Atlanta' },
+  { id:'sf-1', s1:'W:qf-1', s2:'W:qf-2', venue:'AT&T Stadium, Dallas', date:'2026-07-14T19:00Z' },
+  { id:'sf-2', s1:'W:qf-3', s2:'W:qf-4', venue:'Mercedes-Benz Stadium, Atlanta', date:'2026-07-15T19:00Z' },
 ];
 
-const FINAL_DEF = { id:'final',       s1:'W:sf-1', s2:'W:sf-2', venue:'MetLife Stadium, New Jersey — July 19', label:'🏆 Final' };
-const THIRD_DEF = { id:'third-place', s1:'L:sf-1', s2:'L:sf-2', venue:'Hard Rock Stadium, Miami — July 18',   label:'🥉 3rd Place' };
+const FINAL_DEF = { id:'final',       s1:'W:sf-1', s2:'W:sf-2', venue:'MetLife Stadium, New Jersey — July 19', date:'2026-07-19T19:00Z', label:'🏆 Final' };
+const THIRD_DEF = { id:'third-place', s1:'L:sf-1', s2:'L:sf-2', venue:'Hard Rock Stadium, Miami — July 18',   date:'2026-07-18T21:00Z', label:'🥉 3rd Place' };
 
 const ALL_KO = [...R32_DEF, ...R16_DEF, ...QF_DEF, ...SF_DEF];
 
@@ -1442,7 +1494,7 @@ let live = {
 
 function setTab(t) {
   activeTab = t;
-  for (const k of ['bracket', 'live', 'explore']) {
+  for (const k of ['bracket', 'live', 'explore', 'tickets']) {
     document.getElementById('view-' + k).style.display = t === k ? '' : 'none';
     document.getElementById('tab-btn-' + k).classList.toggle('active', t === k);
   }
@@ -1456,6 +1508,7 @@ function setTab(t) {
     stopLivePoll();
   }
   if (t === 'explore' && !explore.fetched) refreshExplore();
+  if (t === 'tickets' && !mc.runs) computeTickets();
 }
 
 function normalizeEvent(e) {
@@ -1494,8 +1547,25 @@ function normalizeEvent(e) {
     ? comp.venue.fullName + (comp.venue.address && comp.venue.address.city ? ', ' + comp.venue.address.city : '')
     : '';
   const tv = (comp.broadcasts && comp.broadcasts[0] && comp.broadcasts[0].names || []).slice(0, 3).join(' · ');
+  // DraftKings 3-way moneyline → implied probabilities, vig normalized out
+  let odds = null;
+  const ml = comp.odds && comp.odds[0] && comp.odds[0].moneyline;
+  if (ml) {
+    const implied = side => {
+      const c = ml[side];
+      const raw = c && ((c.close && c.close.odds) || (c.open && c.open.odds));
+      const v = parseInt(raw);
+      if (isNaN(v)) return null;
+      return v > 0 ? 100 / (v + 100) : -v / (-v + 100);
+    };
+    const h = implied('home'), a = implied('away'), dr = implied('draw');
+    if (h && a && dr) {
+      const s = h + a + dr;
+      odds = { home: h / s, draw: dr / s, away: a / s };
+    }
+  }
   return {
-    id: e.id, date: e.date, round, venue, tv, home, away, scorers,
+    id: e.id, date: e.date, round, venue, tv, home, away, scorers, odds,
     state: stType.state || 'pre',                  // pre | in | post
     detail: stType.shortDetail || '',
     link: `https://www.espn.com/soccer/match/_/gameId/${e.id}`,
@@ -1947,6 +2017,336 @@ function exitViewing() {
   document.getElementById('btn-pick').classList.toggle('active', state.mode === 'pick');
   document.getElementById('viewing-banner').style.display = 'none';
   renderAll();
+}
+
+// ─── TICKET ANALYTICS (Monte Carlo + odds anchoring) ─────────
+// Simulates the remaining tournament N times. Finished matches are locked,
+// partially-played groups start from their real points/GD, and any fixture
+// with posted DraftKings odds uses the implied probabilities instead of the
+// model. Output: P(team appears in each physical match) → ticket demand.
+
+// Resale demand weight per team (US-market fanbase / travel draw), 1–10.
+// Hosts get a further 1.5× when playing in their own country.
+const DEMAND = {
+  'USA':10, 'Mexico':10, 'Brazil':9, 'Argentina':9, 'England':9,
+  'Canada':8, 'Germany':8, 'France':8, 'Spain':8, 'Portugal':8,
+  'Netherlands':7, 'Colombia':7, 'Italy':7,
+  'Japan':6, 'South Korea':6, 'Croatia':6, 'Belgium':6, 'Uruguay':6, 'Morocco':6,
+  'Scotland':5, 'Senegal':5, 'Algeria':5, 'Norway':5, 'Switzerland':5, 'Türkiye':5, 'Egypt':5,
+  'Curaçao':3, 'Haiti':3, 'Jordan':3, 'New Zealand':3, 'Cape Verde':3,
+  'Uzbekistan':3, 'Qatar':3, 'Iraq':3, 'Congo DR':3,
+};
+
+function venueCountry(v) {
+  if (/Monterrey|Mexico City|Guadalajara/.test(v)) return 'MX';
+  if (/Toronto|Vancouver/.test(v)) return 'CA';
+  return 'US';
+}
+
+function demandWeight(team, venue) {
+  let w = DEMAND[team] ?? 4;
+  const vc = venueCountry(venue || '');
+  if ((team === 'USA' && vc === 'US') || (team === 'Mexico' && vc === 'MX') || (team === 'Canada' && vc === 'CA')) w *= 1.5;
+  return w;
+}
+
+const KO_ALL = [...ALL_KO, FINAL_DEF, THIRD_DEF];
+const ROUND_KEY = id => id.startsWith('r32') ? 'r32' : id.startsWith('r16') ? 'r16'
+  : id.startsWith('qf') ? 'qf' : id.startsWith('sf') ? 'sf' : id === 'final' ? 'fin' : 'third';
+const ROUND_LABEL = { r32:'Round of 32', r16:'Round of 16', qf:'Quarterfinal', sf:'Semifinal', fin:'Final', third:'3rd Place' };
+
+let mc = { runs: 0, matchProbs: {}, teamRounds: {}, computedAt: null, running: false,
+           oddsUsed: 0, lockedResults: 0, ms: 0, round: 'r32', prevChamp: null };
+
+const pairKey = (a, b) => [a, b].sort().join('|');
+
+function buildMCInputs() {
+  const groups = {};
+  for (const g of Object.keys(GROUPS)) {
+    groups[g] = { base: {}, remaining: [] };
+    GROUPS[g].forEach(t => { groups[g].base[t] = { pts: 0, gd: 0, gf: 0 }; });
+  }
+  const koLocks = {}, koOdds = {};
+  let locked = 0, oddsUsed = 0;
+
+  if (live.matches.length) {
+    for (const m of live.matches) {
+      const t1 = m.home.name, t2 = m.away.name;
+      if (m.round.startsWith('Group') && TEAMS[t1] && TEAMS[t2]) {
+        const g = TEAMS[t1].group;
+        if (m.state === 'post') {
+          locked++;
+          const s1 = parseInt(m.home.score) || 0, s2 = parseInt(m.away.score) || 0;
+          const b = groups[g].base;
+          b[t1].gf += s1; b[t1].gd += s1 - s2;
+          b[t2].gf += s2; b[t2].gd += s2 - s1;
+          if (s1 > s2) b[t1].pts += 3;
+          else if (s2 > s1) b[t2].pts += 3;
+          else { b[t1].pts++; b[t2].pts++; }
+        } else {
+          groups[g].remaining.push({ t1, t2, odds: m.odds });
+          if (m.odds) oddsUsed++;
+        }
+      } else if (!m.round.startsWith('Group') && !m.home.tbd && !m.away.tbd) {
+        if (m.state === 'post') {
+          const w = m.home.winner ? t1 : m.away.winner ? t2 : null;
+          if (w) { koLocks[pairKey(t1, t2)] = w; locked++; }
+        } else if (m.odds) {
+          koOdds[pairKey(t1, t2)] = { pH: m.odds.home, pD: m.odds.draw, pA: m.odds.away, homeTeam: t1 };
+          oddsUsed++;
+        }
+      }
+    }
+  } else {
+    // no live data at all: simulate full round robin per group
+    for (const g of Object.keys(GROUPS)) {
+      const ts = GROUPS[g];
+      for (let i = 0; i < ts.length; i++)
+        for (let j = i + 1; j < ts.length; j++)
+          groups[g].remaining.push({ t1: ts[i], t2: ts[j], odds: null });
+    }
+  }
+  return { groups, koLocks, koOdds, locked, oddsUsed };
+}
+
+function mcGroupOutcome(g, inp) {
+  const s = {};
+  for (const t of GROUPS[g]) { const b = inp.base[t]; s[t] = { pts: b.pts, gd: b.gd, gf: b.gf }; }
+  for (const f of inp.remaining) {
+    let pH, pD;
+    if (f.odds) { pH = f.odds.home; pD = f.odds.draw; }
+    else {
+      const p1 = effectiveProb(f.t1), p2 = effectiveProb(f.t2);
+      const diff = Math.abs(p1 - p2) / (p1 + p2);
+      pD = Math.max(0.08, 0.28 * (1 - diff * 1.4));
+      pH = (1 - pD) * p1 / (p1 + p2);
+    }
+    const r = rand();
+    if (r < pD) {
+      const gl = Math.floor(rand() * 3);
+      s[f.t1].gf += gl; s[f.t2].gf += gl;
+      s[f.t1].pts++; s[f.t2].pts++;
+    } else if (r < pD + pH) {
+      const g1 = 1 + Math.floor(rand() * 3), g2 = Math.floor(rand() * g1);
+      s[f.t1].pts += 3; s[f.t1].gd += g1 - g2; s[f.t1].gf += g1;
+      s[f.t2].gd += g2 - g1; s[f.t2].gf += g2;
+    } else {
+      const g2 = 1 + Math.floor(rand() * 3), g1 = Math.floor(rand() * g2);
+      s[f.t2].pts += 3; s[f.t2].gd += g2 - g1; s[f.t2].gf += g2;
+      s[f.t1].gd += g1 - g2; s[f.t1].gf += g1;
+    }
+  }
+  const order = GROUPS[g].slice().sort((a, b) =>
+    s[b].pts - s[a].pts || s[b].gd - s[a].gd || s[b].gf - s[a].gf || rand() - 0.5);
+  return { order, stats: s };
+}
+
+function mcAssignThirds(thirds) {
+  if (state.thirdAssign && Object.keys(state.thirdAssign).length === 8) return state.thirdAssign;
+  const advancing = thirds.slice(0, 8);
+  const assignment = {}, used = new Set();
+  const slotOrder = ['r32-3','r32-6','r32-7','r32-8','r32-9','r32-10','r32-13','r32-16'];
+  for (const slot of slotOrder) {
+    const eligible = THIRD_SLOTS[slot];
+    let pick = advancing.find(t => !used.has(t.team) && eligible.includes(t.group))
+            || advancing.find(t => !used.has(t.team));
+    if (pick) { assignment[slot] = pick.team; used.add(pick.team); }
+  }
+  return assignment;
+}
+
+function mcWinner(t1, t2, koLocks, koOdds) {
+  const k = pairKey(t1, t2);
+  if (koLocks[k]) return koLocks[k];
+  const e1 = effectiveProb(t1), e2 = effectiveProb(t2);
+  let p1 = e1 / (e1 + e2);
+  const o = koOdds[k];
+  if (o) p1 = (o.homeTeam === t1 ? o.pH : o.pA) + o.pD * p1;  // 90-min odds + draw split by strength
+  return rand() < p1 ? t1 : t2;
+}
+
+function runTicketsMC(N) {
+  const inputs = buildMCInputs();
+  const matchCount = {};
+  KO_ALL.forEach(d => { matchCount[d.id] = {}; });
+  const rounds = {};
+  Object.keys(TEAMS).forEach(t => { rounds[t] = { r32:0, r16:0, qf:0, sf:0, fin:0, third:0, champ:0 }; });
+
+  for (let i = 0; i < N; i++) {
+    const pos = {}, thirds = [];
+    for (const g of Object.keys(GROUPS)) {
+      const { order, stats } = mcGroupOutcome(g, inputs.groups[g]);
+      pos['1' + g] = order[0];
+      pos['2' + g] = order[1];
+      const t3 = order[2];
+      thirds.push({ team: t3, group: g, pts: stats[t3].pts, gd: stats[t3].gd, gf: stats[t3].gf });
+    }
+    thirds.sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || rand() - 0.5);
+    const ta = mcAssignThirds(thirds);
+
+    const winners = {}, losers = {};
+    for (const def of KO_ALL) {
+      const get = (slot) => {
+        if (slot.startsWith('3rd:')) return ta[def.id];
+        if (/^\d[A-L]$/.test(slot)) return pos[slot];
+        if (slot.startsWith('W:')) return winners[slot.slice(2)];
+        if (slot.startsWith('L:')) return losers[slot.slice(2)];
+        return null;
+      };
+      const t1 = get(def.s1), t2 = get(def.s2);
+      if (!t1 || !t2) continue;
+      matchCount[def.id][t1] = (matchCount[def.id][t1] || 0) + 1;
+      matchCount[def.id][t2] = (matchCount[def.id][t2] || 0) + 1;
+      const rk = ROUND_KEY(def.id);
+      rounds[t1][rk]++; rounds[t2][rk]++;
+      const w = mcWinner(t1, t2, inputs.koLocks, inputs.koOdds);
+      winners[def.id] = w;
+      losers[def.id] = w === t1 ? t2 : t1;
+      if (def.id === 'final') rounds[w].champ++;
+    }
+  }
+
+  mc.prevChamp = mc.runs ? Object.fromEntries(Object.entries(mc.teamRounds).map(([t, r]) => [t, r.champ / mc.runs])) : mc.prevChamp;
+  mc.matchProbs = {};
+  for (const [id, counts] of Object.entries(matchCount)) {
+    mc.matchProbs[id] = Object.entries(counts)
+      .map(([team, c]) => ({ team, p: c / N }))
+      .sort((a, b) => b.p - a.p);
+  }
+  mc.teamRounds = rounds;
+  mc.runs = N;
+  mc.oddsUsed = inputs.oddsUsed;
+  mc.lockedResults = inputs.locked;
+  mc.computedAt = new Date();
+  try {
+    const prev = JSON.parse(localStorage.getItem('wcMCPrev') || 'null');
+    if (prev && prev.champ && !mc.prevChamp) mc.prevChamp = prev.champ;
+    localStorage.setItem('wcMCPrev', JSON.stringify({ ts: Date.now(), champ: Object.fromEntries(Object.entries(rounds).map(([t, r]) => [t, r.champ / N])) }));
+  } catch {}
+}
+
+async function computeTickets(force = false) {
+  if (mc.running) return;
+  mc.running = true;
+  const body = document.getElementById('tickets-body');
+  body.innerHTML = '<p class="live-empty">Running 5,000 tournament simulations…</p>';
+  if (!live.fullFetched || force) await refreshLive(true);
+  computeRatings();
+  await sleep(30);
+  const t0 = performance.now();
+  runTicketsMC(5000);
+  mc.ms = Math.round(performance.now() - t0);
+  mc.running = false;
+  renderTickets();
+}
+
+function setTicketsRound(r) { mc.round = r; renderTickets(); }
+
+function pct(p) { return p >= 0.995 ? '100%' : p < 0.005 ? '—' : Math.round(p * 100) + '%'; }
+function fmtKickoff(iso) {
+  return new Date(iso).toLocaleDateString([], { weekday:'short', month:'short', day:'numeric' }) +
+    ' · ' + new Date(iso).toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
+}
+
+function renderTickets() {
+  document.getElementById('mc-updated').textContent = mc.computedAt
+    ? `${mc.runs.toLocaleString()} sims in ${mc.ms}ms · ${mc.computedAt.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}` : '';
+  document.getElementById('mc-meta').textContent =
+    `Anchored to ${mc.lockedResults} real result${mc.lockedResults === 1 ? '' : 's'} + ${mc.oddsUsed} live odds (DraftKings via ESPN)`;
+  const body = document.getElementById('tickets-body');
+  if (!mc.runs) { body.innerHTML = '<p class="live-empty">No simulation data yet.</p>'; return; }
+  body.innerHTML = hotTicketsHTML() + matchExplorerHTML() + reachMatrixHTML() + moversHTML();
+}
+
+// 1 — demand-ranked buy list over all future games
+function hotTicketsHTML() {
+  const rows = [];
+  const now = Date.now();
+  for (const m of live.matches) {
+    if (!m.round.startsWith('Group') || m.state === 'post' || m.home.tbd || m.away.tbd) continue;
+    const w = demandWeight(m.home.name, m.venue) + demandWeight(m.away.name, m.venue);
+    rows.push({ label: `${TEAMS[m.home.name]?.flag || ''} ${m.home.name} vs ${TEAMS[m.away.name]?.flag || ''} ${m.away.name}`,
+      round: m.round, venue: m.venue, date: m.date, score: w, driver: 'teams locked in' });
+  }
+  for (const def of KO_ALL) {
+    if (new Date(def.date).getTime() < now) continue;
+    const probs = mc.matchProbs[def.id] || [];
+    let score = 0, top = null;
+    for (const { team, p } of probs) {
+      const v = p * demandWeight(team, def.venue);
+      score += v;
+      if (!top || v > top.v) top = { team, p, v };
+    }
+    rows.push({ label: `${ROUND_LABEL[ROUND_KEY(def.id)]} — ${def.venue.split(',')[0]}`,
+      round: ROUND_LABEL[ROUND_KEY(def.id)], venue: def.venue, date: def.date, score,
+      driver: top ? `${TEAMS[top.team]?.flag || ''} ${top.team} ${pct(top.p)} to appear` : '' });
+  }
+  rows.sort((a, b) => b.score - a.score);
+  const max = rows[0] ? rows[0].score : 1;
+  return `<h3 class="tk-h">🔥 Hot tickets <span class="tk-sub">expected resale demand = Σ P(team appears) × fanbase weight, hosts boosted at home venues</span></h3>
+  <div class="tk-board">${rows.slice(0, 18).map((r, i) => `
+    <div class="tk-row">
+      <span class="tk-rank">${i + 1}</span>
+      <div class="tk-main">
+        <div class="tk-label">${r.label}</div>
+        <div class="tk-detail">${fmtKickoff(r.date)} · ${r.venue}${r.driver ? ' · ' + r.driver : ''}</div>
+      </div>
+      <div class="tk-bar"><div class="tk-bar-fill" style="width:${Math.round(r.score / max * 100)}%"></div></div>
+      <span class="tk-score">${r.score.toFixed(1)}</span>
+    </div>`).join('')}</div>`;
+}
+
+// 2 — per-match probability explorer
+function matchExplorerHTML() {
+  const chips = [['r32','R32'],['r16','R16'],['qf','QF'],['sf','SF'],['fin','Final']];
+  const defs = KO_ALL.filter(d => ROUND_KEY(d.id) === mc.round || (mc.round === 'fin' && (d.id === 'final' || d.id === 'third-place')));
+  return `<h3 class="tk-h">🎯 Who plays in each game?</h3>
+  <div class="live-filters" style="margin-bottom:12px">${chips.map(([k, l]) =>
+    `<button class="chip${mc.round === k ? ' active' : ''}" onclick="setTicketsRound('${k}')">${l}</button>`).join('')}</div>
+  <div class="tk-explorer">${defs.map(def => {
+    const probs = (mc.matchProbs[def.id] || []).slice(0, 6);
+    const locked = probs.length === 2 && probs[0].p >= 0.995 && probs[1].p >= 0.995;
+    const vc = venueCountry(def.venue);
+    return `<div class="tk-match">
+      <div class="tk-match-head"><span>${def.label || def.id.toUpperCase()}</span>${locked ? '<span class="tk-locked">LOCKED</span>' : ''}</div>
+      <div class="tk-match-venue">${fmtKickoff(def.date)}<br>${def.venue}</div>
+      ${probs.map(({ team, p }) => {
+        const host = (team === 'USA' && vc === 'US') || (team === 'Mexico' && vc === 'MX') || (team === 'Canada' && vc === 'CA');
+        return `<div class="tk-team-p${host ? ' tk-host' : ''}">
+          <span>${TEAMS[team]?.flag || ''} ${team}${host ? ' 🏠' : ''}</span>
+          <div class="tk-mini-bar"><div style="width:${Math.round(p * 100)}%"></div></div>
+          <span class="tk-pct">${pct(p)}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// 3 — team round-reach matrix
+function reachMatrixHTML() {
+  const teams = Object.keys(TEAMS).map(t => ({ t, r: mc.teamRounds[t] }))
+    .sort((a, b) => b.r.champ - a.r.champ || b.r.fin - a.r.fin || b.r.sf - a.r.sf || b.r.qf - a.r.qf || b.r.r16 - a.r.r16 || b.r.r32 - a.r.r32);
+  const N = mc.runs;
+  const cell = c => { const p = c / N; return `<td style="${p >= 0.5 ? 'color:var(--gold);font-weight:700' : p < 0.005 ? 'opacity:0.3' : ''}">${pct(p)}</td>`; };
+  return `<h3 class="tk-h">📈 How far does each team go?</h3>
+  <div class="tk-matrix-wrap"><table class="standings-table tk-matrix">
+    <thead><tr><th>Team</th><th>R32</th><th>R16</th><th>QF</th><th>SF</th><th>Final</th><th>🏆 Champion</th></tr></thead>
+    <tbody>${teams.map(({ t, r }) => `<tr>
+      <td>${TEAMS[t].flag} ${t}</td>${cell(r.r32)}${cell(r.r16)}${cell(r.qf)}${cell(r.sf)}${cell(r.fin)}${cell(r.champ)}
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+// 4 — movers vs the previous run
+function moversHTML() {
+  if (!mc.prevChamp) return '';
+  const moves = Object.keys(TEAMS).map(t => ({
+    t, d: (mc.teamRounds[t].champ / mc.runs) - (mc.prevChamp[t] || 0),
+  })).filter(m => Math.abs(m.d) >= 0.01).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, 6);
+  if (!moves.length) return '';
+  return `<h3 class="tk-h">📊 Title-odds movers since last run</h3>
+  <div class="tk-movers">${moves.map(m =>
+    `<span class="tk-mover">${TEAMS[m.t].flag} ${m.t} <span class="${m.d > 0 ? 'prob-delta-up' : 'prob-delta-down'}">${m.d > 0 ? '▲' : '▼'}${Math.abs(m.d * 100).toFixed(1)}pt</span></span>`).join('')}</div>`;
 }
 
 // ─── SHARE / STATE ────────────────────────────────────────────
