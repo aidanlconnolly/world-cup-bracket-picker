@@ -90,12 +90,29 @@ DraftKings 3-way moneylines from ESPN (`comp.odds[0].moneyline`, vig-normalized 
 `normalizeEvent()` → `m.odds`) instead of the model; everything else uses
 `effectiveProb()`. KO through-prob with odds = P(win 90') + P(draw)×strength-split.
 Outputs: `mc.matchProbs[matchId]` (P(team appears in each physical game)) and
-`mc.teamRounds` (round-reach + champion). Views: Hot Tickets (demand = Σ P×`DEMAND`
-weight, hosts ×1.5 at home venues — weights are editable guesses), per-match explorer,
-reach matrix, title-odds movers vs previous run (`wcMCPrev` in localStorage).
-KO defs carry exact `date:` kickoffs extracted from ESPN fixtures (R32 mapped via
-bracket-slot placeholder names; R16+ via venue, unique within each round).
-`mc` is derived data, NOT part of `state` — no share/sanitizer coupling.
+`mc.teamRounds` (round-reach + champion). `mc` is derived data, NOT part of `state` —
+no share/sanitizer coupling. KO defs carry exact `date:` kickoffs extracted from ESPN
+fixtures (R32 mapped via bracket-slot placeholder names; R16+ via venue, unique within
+each round).
+
+`gameRows()` builds one stable-keyed row per future game (group fixtures `'g'+id` +
+KO slots by match id), the spine for all Tickets views. Demand = Σ P×`DEMAND` weight,
+hosts ×1.5 at home venues (`VENUES` capacities + `DEMAND` fanbase weights are editable
+guesses). Views, top to bottom:
+- **Since yesterday**: demand + appearance-prob moves vs the most recent prior daily
+  snapshot (`wcMCSnaps`, ≤21 days kept; `saveDailySnapshot()` writes today's after each
+  run; `prevDailySnapshot()` reads the latest day `< today`).
+- **My inventory**: ☆ watchlist (`wcWatch`: gameKey→{keyTeam?, cost?}) with hold/sell
+  signals from `signalFor()` (locked matchup → sell window; key team fading <35% →
+  elimination-risk sell; else demand trend vs yesterday) + P/L from cost vs ask price.
+- **City board**: per-venue scarcity = remaining demand per 1k seats (`VENUES[].cap`),
+  total demand, yesterday trend, avg entered price, aggregated hold/sell lean.
+- Hot Tickets, per-round match explorer, reach matrix, title movers (`wcMCPrev`).
+
+Prices (`wcPrices`: gameKey→get-in $) are manual per-game inputs, or auto-filled by
+the optional SeatGeek feed (`fetchSeatGeekPrices()`, free `client_id` in `wcSeatGeekKey`,
+matched to games by venue + kickoff). With ≥3 priced games, value tags
+(UNDERPRICED/FAIR/RICH) compare $/demand vs the median (`medianVpd()`).
 
 ### Shared brackets (Explore)
 

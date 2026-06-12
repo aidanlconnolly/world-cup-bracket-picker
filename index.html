@@ -411,6 +411,38 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
   background: var(--card-bg); border: 1px solid var(--card-border);
   border-radius: 16px; padding: 5px 12px; font-size: 12px;
 }
+/* inventory / prices / signals */
+.tk-star {
+  background: none; border: none; cursor: pointer; font-size: 16px;
+  color: var(--muted); flex-shrink: 0; padding: 0 2px; transition: color 0.15s;
+}
+.tk-star:hover { color: var(--gold); }
+.tk-star.on { color: var(--gold); }
+.tk-price {
+  width: 64px; flex-shrink: 0; font-size: 12px;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--card-border);
+  color: white; border-radius: 5px; padding: 4px 6px; text-align: right;
+}
+.tk-price::placeholder { color: var(--muted); }
+.tk-sel {
+  flex-shrink: 0; max-width: 130px; font-size: 11px;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--card-border);
+  color: white; border-radius: 5px; padding: 4px 6px;
+}
+.tk-sig {
+  flex-shrink: 0; font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
+  border-radius: 5px; padding: 3px 8px; white-space: nowrap;
+}
+.tk-sig-hold { background: rgba(46,204,113,0.18); color: #2ecc71; border: 1px solid rgba(46,204,113,0.3); }
+.tk-sig-sell { background: rgba(255,107,107,0.18); color: #ff6b6b; border: 1px solid rgba(255,107,107,0.3); }
+.tk-sig-neutral { background: rgba(255,255,255,0.07); color: var(--muted); }
+.tk-val { font-size: 9px; font-weight: 700; border-radius: 4px; padding: 1px 5px; margin-left: 4px; background: rgba(255,255,255,0.08); color: var(--muted); }
+.tk-val-under { background: rgba(46,204,113,0.2); color: #2ecc71; }
+.tk-val-rich { background: rgba(255,107,107,0.18); color: #ff6b6b; }
+.tk-city-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 6px; margin-top: 6px; }
+.tk-city-stats > div { display: flex; flex-direction: column; }
+.tk-city-num { font-size: 16px; font-weight: 700; color: var(--gold); }
+.tk-city-lbl { font-size: 9.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; }
 
 /* VIEWING BANNER */
 #viewing-banner {
@@ -536,6 +568,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
   <div class="live-controls">
     <span style="font-size:13px;color:var(--muted)" id="mc-meta">Monte Carlo over the remaining tournament, anchored to real results + live odds</span>
     <span class="live-updated" id="mc-updated"></span>
+    <button class="btn" onclick="priceFeedSetup()" title="Auto-fill get-in prices from SeatGeek (free client_id)">💵 Prices</button>
     <button class="btn btn-gold" onclick="computeTickets(true)">⟳ Recompute</button>
   </div>
   <div id="tickets-body"><p class="live-empty">Open this tab to run simulations…</p></div>
@@ -2043,6 +2076,32 @@ function venueCountry(v) {
   return 'US';
 }
 
+// World Cup configuration capacities — editable estimates.
+const VENUES = {
+  'Estadio Azteca':          { city:'Mexico City',   cap:87000 },
+  'AT&T Stadium':            { city:'Dallas',        cap:92000 },
+  'MetLife Stadium':         { city:'New York/NJ',   cap:82500 },
+  'Arrowhead Stadium':       { city:'Kansas City',   cap:76400 },
+  'Mercedes-Benz Stadium':   { city:'Atlanta',       cap:75000 },
+  'NRG Stadium':             { city:'Houston',       cap:72200 },
+  "Levi's Stadium":          { city:'SF Bay Area',   cap:70900 },
+  'SoFi Stadium':            { city:'Los Angeles',   cap:70000 },
+  'Lincoln Financial Field': { city:'Philadelphia',  cap:69600 },
+  'Lumen Field':             { city:'Seattle',       cap:69000 },
+  'Gillette Stadium':        { city:'Boston',        cap:65000 },
+  'Hard Rock Stadium':       { city:'Miami',         cap:65000 },
+  'BC Place':                { city:'Vancouver',     cap:54500 },
+  'Estadio BBVA':            { city:'Monterrey',     cap:53500 },
+  'Estadio Akron':           { city:'Guadalajara',   cap:48000 },
+  'BMO Field':               { city:'Toronto',       cap:45500 },
+};
+const VENUE_ALIAS = { 'Estadio Banorte': 'Estadio Azteca' };  // ESPN uses the sponsor name
+
+function venueKey(v) {
+  const k = String(v || '').split(',')[0].split('—')[0].trim();
+  return VENUE_ALIAS[k] || k;
+}
+
 function demandWeight(team, venue) {
   let w = DEMAND[team] ?? 4;
   const vc = venueCountry(venue || '');
@@ -2238,6 +2297,8 @@ async function computeTickets(force = false) {
   mc.ms = Math.round(performance.now() - t0);
   mc.running = false;
   renderTickets();
+  // record today's demand/probabilities once per day so "since yesterday" has a baseline
+  saveDailySnapshot();
 }
 
 function setTicketsRound(r) { mc.round = r; renderTickets(); }
@@ -2255,45 +2316,310 @@ function renderTickets() {
     `Anchored to ${mc.lockedResults} real result${mc.lockedResults === 1 ? '' : 's'} + ${mc.oddsUsed} live odds (DraftKings via ESPN)`;
   const body = document.getElementById('tickets-body');
   if (!mc.runs) { body.innerHTML = '<p class="live-empty">No simulation data yet.</p>'; return; }
-  body.innerHTML = hotTicketsHTML() + matchExplorerHTML() + reachMatrixHTML() + moversHTML();
+  _rowsCache = null;
+  body.innerHTML = sinceYesterdayHTML() + inventoryHTML() + cityBoardHTML()
+    + hotTicketsHTML() + matchExplorerHTML() + reachMatrixHTML() + moversHTML();
 }
 
-// 1 — demand-ranked buy list over all future games
-function hotTicketsHTML() {
+// ─── inventory, prices, daily snapshots ──────────────────────
+const lsGet = (k, fb) => { try { return JSON.parse(localStorage.getItem(k)) ?? fb; } catch { return fb; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+let watchlist = lsGet('wcWatch', {});   // gameKey → {keyTeam?, cost?}
+let prices = lsGet('wcPrices', {});     // gameKey → current get-in $ (manual or SeatGeek)
+
+// One unified row per future game (group fixtures + knockout slots), stable keys.
+let _rowsCache = null;
+function gameRows() {
+  if (_rowsCache && _rowsCache.at === mc.computedAt) return _rowsCache.rows;
   const rows = [];
   const now = Date.now();
   for (const m of live.matches) {
     if (!m.round.startsWith('Group') || m.state === 'post' || m.home.tbd || m.away.tbd) continue;
-    const w = demandWeight(m.home.name, m.venue) + demandWeight(m.away.name, m.venue);
-    rows.push({ label: `${TEAMS[m.home.name]?.flag || ''} ${m.home.name} vs ${TEAMS[m.away.name]?.flag || ''} ${m.away.name}`,
-      round: m.round, venue: m.venue, date: m.date, score: w, driver: 'teams locked in' });
+    rows.push({
+      key: 'g' + m.id, kind: 'group',
+      label: `${TEAMS[m.home.name]?.flag || ''} ${m.home.name} vs ${TEAMS[m.away.name]?.flag || ''} ${m.away.name}`,
+      round: m.round, venue: m.venue, date: m.date, locked: true,
+      top: [{ team: m.home.name, p: 1 }, { team: m.away.name, p: 1 }],
+      score: demandWeight(m.home.name, m.venue) + demandWeight(m.away.name, m.venue),
+      driver: 'teams locked in',
+    });
   }
   for (const def of KO_ALL) {
     if (new Date(def.date).getTime() < now) continue;
     const probs = mc.matchProbs[def.id] || [];
-    let score = 0, top = null;
+    let score = 0, topV = null;
     for (const { team, p } of probs) {
       const v = p * demandWeight(team, def.venue);
       score += v;
-      if (!top || v > top.v) top = { team, p, v };
+      if (!topV || v > topV.v) topV = { team, p, v };
     }
-    rows.push({ label: `${ROUND_LABEL[ROUND_KEY(def.id)]} — ${def.venue.split(',')[0]}`,
-      round: ROUND_LABEL[ROUND_KEY(def.id)], venue: def.venue, date: def.date, score,
-      driver: top ? `${TEAMS[top.team]?.flag || ''} ${top.team} ${pct(top.p)} to appear` : '' });
+    rows.push({
+      key: def.id, kind: 'ko',
+      label: `${ROUND_LABEL[ROUND_KEY(def.id)]} — ${def.venue.split(',')[0]}`,
+      round: ROUND_LABEL[ROUND_KEY(def.id)], venue: def.venue, date: def.date,
+      locked: probs.length === 2 && probs[0].p >= 0.995,
+      top: probs, score,
+      driver: topV ? `${TEAMS[topV.team]?.flag || ''} ${topV.team} ${pct(topV.p)} to appear` : '',
+    });
   }
-  rows.sort((a, b) => b.score - a.score);
+  _rowsCache = { at: mc.computedAt, rows };
+  return rows;
+}
+
+function saveDailySnapshot() {
+  const snaps = lsGet('wcMCSnaps', {});
+  const m = {};
+  for (const r of gameRows()) {
+    m[r.key] = { d: +r.score.toFixed(2), t: r.top.slice(0, 4).map(x => ({ team: x.team, p: +x.p.toFixed(3) })) };
+  }
+  snaps[dayKey(new Date())] = { ts: Date.now(), m };
+  const keys = Object.keys(snaps).sort();
+  while (keys.length > 21) delete snaps[keys.shift()];
+  lsSet('wcMCSnaps', snaps);
+}
+
+function prevDailySnapshot() {
+  const snaps = lsGet('wcMCSnaps', {});
+  const prior = Object.keys(snaps).filter(k => k < dayKey(new Date())).sort();
+  return prior.length ? snaps[prior[prior.length - 1]] : null;
+}
+
+// Hold/sell rules, deliberately transparent:
+// locked matchup → news is priced in (sell window); key team fading under 35% →
+// elimination risk; otherwise follow the demand trend vs yesterday's snapshot.
+function signalFor(row) {
+  const prev = prevDailySnapshot();
+  const pe = prev && prev.m[row.key];
+  const trend = pe ? row.score - pe.d : null;
+  const w = watchlist[row.key] || {};
+  if (row.kind === 'ko') {
+    const keyTeam = w.keyTeam || (row.top[0] && row.top[0].team);
+    if (keyTeam && pe) {
+      const pNow = (row.top.find(x => x.team === keyTeam) || {}).p || 0;
+      const prevEntry = pe.t.find(x => x.team === keyTeam);
+      if (prevEntry && pNow < 0.35 && pNow < prevEntry.p - 0.03)
+        return { cls: 'sell', label: 'SELL', why: `${keyTeam} fading ${pct(prevEntry.p)} → ${pct(pNow)}` };
+    }
+    if (row.locked) return { cls: 'sell', label: 'SELL WINDOW', why: 'matchup locked — news priced in' };
+  }
+  if (trend != null && trend >= 0.5) return { cls: 'hold', label: 'HOLD ▲', why: `demand +${trend.toFixed(1)} since yesterday` };
+  if (trend != null && trend <= -0.5) return { cls: 'sell', label: 'SELL ▼', why: `demand ${trend.toFixed(1)} since yesterday` };
+  return { cls: 'neutral', label: 'HOLD', why: trend == null ? 'no prior snapshot yet' : 'demand stable' };
+}
+
+function medianVpd() {
+  const v = gameRows().filter(r => prices[r.key] > 0).map(r => prices[r.key] / Math.max(r.score, 0.1)).sort((a, b) => a - b);
+  return v.length >= 3 ? v[Math.floor(v.length / 2)] : null;
+}
+
+function valueTag(row, med) {
+  const p = prices[row.key];
+  if (!(p > 0) || !med) return '';
+  const vpd = p / Math.max(row.score, 0.1);
+  if (vpd < med * 0.7) return '<span class="tk-val tk-val-under">UNDERPRICED</span>';
+  if (vpd > med * 1.5) return '<span class="tk-val tk-val-rich">RICH</span>';
+  return '<span class="tk-val">FAIR</span>';
+}
+
+function toggleWatch(key) {
+  if (watchlist[key]) delete watchlist[key];
+  else watchlist[key] = {};
+  lsSet('wcWatch', watchlist);
+  renderTickets();
+}
+function setPrice(key, v) {
+  const n = parseFloat(v);
+  if (n > 0) prices[key] = n; else delete prices[key];
+  lsSet('wcPrices', prices);
+  renderTickets();
+}
+function setCost(key, v) {
+  const n = parseFloat(v);
+  if (!watchlist[key]) return;
+  if (n > 0) watchlist[key].cost = n; else delete watchlist[key].cost;
+  lsSet('wcWatch', watchlist);
+  renderTickets();
+}
+function setKeyTeam(key, team) {
+  if (!watchlist[key]) return;
+  watchlist[key].keyTeam = team || undefined;
+  lsSet('wcWatch', watchlist);
+  renderTickets();
+}
+
+// Optional auto price feed: SeatGeek's public API (free client_id) exposes
+// lowest_price per event; matched to our games by venue + kickoff time.
+async function priceFeedSetup() {
+  let key = lsGet('wcSeatGeekKey', '');
+  if (!key) {
+    key = prompt('SeatGeek client_id (free at seatgeek.com → account → developer).\nLeave blank to keep entering get-in prices by hand:', '');
+    if (!key || !key.trim()) return;
+    lsSet('wcSeatGeekKey', key.trim());
+  }
+  await fetchSeatGeekPrices();
+}
+
+async function fetchSeatGeekPrices() {
+  const key = lsGet('wcSeatGeekKey', '');
+  if (!key) return;
+  showToast('Fetching SeatGeek prices…');
+  try {
+    let events = [];
+    for (let page = 1; page <= 2; page++) {
+      const r = await fetch(`https://api.seatgeek.com/2/events?client_id=${encodeURIComponent(key)}&q=fifa+world+cup&per_page=100&page=${page}`);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      events = events.concat(d.events || []);
+      if ((d.events || []).length < 100) break;
+    }
+    let filled = 0;
+    const rows = gameRows();
+    for (const ev of events) {
+      const lo = ev.stats && ev.stats.lowest_price;
+      if (!lo) continue;
+      const evVenue = venueKey((ev.venue && ev.venue.name) || '');
+      const evTime = new Date(ev.datetime_utc + 'Z').getTime();
+      const row = rows.find(r => venueKey(r.venue) === evVenue && Math.abs(new Date(r.date).getTime() - evTime) < 2 * 36e5);
+      if (row) { prices[row.key] = lo; filled++; }
+    }
+    lsSet('wcPrices', prices);
+    renderTickets();
+    showToast(filled ? `💵 Filled ${filled} get-in prices from SeatGeek` : 'SeatGeek responded but no listings matched');
+  } catch {
+    showToast('SeatGeek fetch failed — check your client_id');
+  }
+}
+
+// 0 — starred holdings with hold/sell signals and P/L
+function inventoryHTML() {
+  const keys = Object.keys(watchlist);
+  if (!keys.length) {
+    return `<h3 class="tk-h">📌 My inventory <span class="tk-sub">star ☆ games below to track holdings — signals + P/L appear here</span></h3>`;
+  }
+  const byKey = Object.fromEntries(gameRows().map(r => [r.key, r]));
+  const med = medianVpd();
+  return `<h3 class="tk-h">📌 My inventory <span class="tk-sub">cost = what you paid · ask = current get-in price on your marketplace</span></h3>
+  <div class="tk-board">` + keys.map(key => {
+    const r = byKey[key];
+    if (!r) {
+      return `<div class="tk-row"><div class="tk-main"><div class="tk-label">${key}</div>
+        <div class="tk-detail">game already played (or no longer listed)</div></div>
+        <button class="tk-star on" onclick="toggleWatch('${key}')" title="remove">★</button></div>`;
+    }
+    const sig = signalFor(r);
+    const w = watchlist[key];
+    const price = prices[key];
+    const pl = price > 0 && w.cost > 0 ? ` · P/L <strong>${((price - w.cost) / w.cost * 100).toFixed(0)}%</strong>` : '';
+    const teamSel = r.kind === 'ko'
+      ? `<select class="tk-sel" onchange="setKeyTeam('${key}', this.value)" title="team your value rides on">${r.top.slice(0, 5).map(x =>
+          `<option value="${x.team}"${(w.keyTeam || r.top[0].team) === x.team ? ' selected' : ''}>${x.team} ${pct(x.p)}</option>`).join('')}</select>`
+      : '';
+    return `<div class="tk-row">
+      <div class="tk-main">
+        <div class="tk-label">${r.label} ${valueTag(r, med)}</div>
+        <div class="tk-detail">${fmtKickoff(r.date)} · ${r.venue}${pl}</div>
+      </div>
+      ${teamSel}
+      <input class="tk-price" type="number" placeholder="cost $" value="${w.cost || ''}" onchange="setCost('${key}', this.value)" title="your cost basis">
+      <input class="tk-price" type="number" placeholder="ask $" value="${price || ''}" onchange="setPrice('${key}', this.value)" title="current get-in price">
+      <span class="tk-sig tk-sig-${sig.cls}" title="${sig.why}">${sig.label}</span>
+      <button class="tk-star on" onclick="toggleWatch('${key}')" title="remove">★</button>
+    </div>`;
+  }).join('') + `</div>`;
+}
+
+// 0.5 — what moved since the last match day
+function sinceYesterdayHTML() {
+  const prev = prevDailySnapshot();
+  if (!prev) return '';
+  const moves = [];
+  for (const r of gameRows()) {
+    const pe = prev.m[r.key];
+    if (!pe) continue;
+    const dd = r.score - pe.d;
+    let probMove = '';
+    if (r.kind === 'ko') {
+      let best = null;
+      for (const x of r.top.slice(0, 6)) {
+        const old = pe.t.find(y => y.team === x.team);
+        if (!old) continue;
+        const dp = x.p - old.p;
+        if (!best || Math.abs(dp) > Math.abs(best.dp)) best = { team: x.team, from: old.p, to: x.p, dp };
+      }
+      if (best && Math.abs(best.dp) >= 0.03) probMove = `${TEAMS[best.team]?.flag || ''} ${best.team} ${pct(best.from)} → ${pct(best.to)}`;
+    }
+    if (Math.abs(dd) >= 0.4 || probMove) moves.push({ r, dd, probMove });
+  }
+  if (!moves.length) return '';
+  moves.sort((a, b) => Math.abs(b.dd) - Math.abs(a.dd));
+  return `<h3 class="tk-h">🔔 Since yesterday <span class="tk-sub">probability & demand moves vs the last daily snapshot — these reprice first</span></h3>
+  <div class="tk-board">${moves.slice(0, 8).map(({ r, dd, probMove }) => `
+    <div class="tk-row">
+      <div class="tk-main">
+        <div class="tk-label">${r.label}</div>
+        <div class="tk-detail">${fmtKickoff(r.date)} · ${r.venue}${probMove ? ' · ' + probMove : ''}</div>
+      </div>
+      <span class="${dd >= 0 ? 'prob-delta-up' : 'prob-delta-down'}" style="font-size:13px;white-space:nowrap">${dd >= 0 ? '▲' : '▼'}${Math.abs(dd).toFixed(1)} demand</span>
+    </div>`).join('')}</div>`;
+}
+
+// 1 — demand-ranked buy list over all future games
+function hotTicketsHTML() {
+  const rows = gameRows().slice().sort((a, b) => b.score - a.score);
   const max = rows[0] ? rows[0].score : 1;
-  return `<h3 class="tk-h">🔥 Hot tickets <span class="tk-sub">expected resale demand = Σ P(team appears) × fanbase weight, hosts boosted at home venues</span></h3>
+  const med = medianVpd();
+  return `<h3 class="tk-h">🔥 Hot tickets <span class="tk-sub">demand = Σ P(appears) × fanbase weight, hosts ×1.5 at home · enter get-in $ to unlock value tags</span></h3>
   <div class="tk-board">${rows.slice(0, 18).map((r, i) => `
     <div class="tk-row">
       <span class="tk-rank">${i + 1}</span>
       <div class="tk-main">
-        <div class="tk-label">${r.label}</div>
+        <div class="tk-label">${r.label} ${valueTag(r, med)}</div>
         <div class="tk-detail">${fmtKickoff(r.date)} · ${r.venue}${r.driver ? ' · ' + r.driver : ''}</div>
       </div>
+      <input class="tk-price" type="number" placeholder="$" value="${prices[r.key] || ''}" onchange="setPrice('${r.key}', this.value)" title="get-in price">
       <div class="tk-bar"><div class="tk-bar-fill" style="width:${Math.round(r.score / max * 100)}%"></div></div>
       <span class="tk-score">${r.score.toFixed(1)}</span>
+      <button class="tk-star${watchlist[r.key] ? ' on' : ''}" onclick="toggleWatch('${r.key}')" title="add to inventory">${watchlist[r.key] ? '★' : '☆'}</button>
     </div>`).join('')}</div>`;
+}
+
+// 2.5 — per-city scarcity, trend, and hold/sell lean
+function cityBoardHTML() {
+  const prev = prevDailySnapshot();
+  const cities = {};
+  for (const r of gameRows()) {
+    const vk = venueKey(r.venue);
+    const v = VENUES[vk];
+    if (!v) continue;
+    const c = cities[vk] = cities[vk] || { vk, ...v, games: 0, score: 0, dd: 0, hasPrev: false, prices: [], sells: 0, holds: 0 };
+    c.games++;
+    c.score += r.score;
+    const pe = prev && prev.m[r.key];
+    if (pe) { c.dd += r.score - pe.d; c.hasPrev = true; }
+    if (prices[r.key] > 0) c.prices.push(prices[r.key]);
+    const sig = signalFor(r);
+    if (sig.cls === 'sell') c.sells++;
+    else if (sig.cls === 'hold') c.holds++;
+  }
+  const list = Object.values(cities).sort((a, b) => (b.score / b.cap) - (a.score / a.cap));
+  return `<h3 class="tk-h">🏟 City board <span class="tk-sub">scarcity = remaining demand per 1k seats — big teams in small stadiums resell strongest</span></h3>
+  <div class="tk-explorer">${list.map(c => {
+    const lean = c.sells > c.holds + 1 ? { cls: 'sell', label: 'SELL LEAN' }
+               : c.holds > c.sells + 1 ? { cls: 'hold', label: 'HOLD LEAN' }
+               : { cls: 'neutral', label: 'MIXED' };
+    const avgP = c.prices.length ? '$' + Math.round(c.prices.reduce((s, x) => s + x, 0) / c.prices.length) : '—';
+    return `<div class="tk-match">
+      <div class="tk-match-head"><span>${c.city}</span><span class="tk-sig tk-sig-${lean.cls}">${lean.label}</span></div>
+      <div class="tk-match-venue">${c.vk} · ${Math.round(c.cap / 1000)}k seats · ${c.games} game${c.games > 1 ? 's' : ''} left</div>
+      <div class="tk-city-stats">
+        <div><span class="tk-city-num">${(c.score / c.cap * 1000).toFixed(2)}</span><span class="tk-city-lbl">demand / 1k seats</span></div>
+        <div><span class="tk-city-num">${c.score.toFixed(0)}</span><span class="tk-city-lbl">total demand</span></div>
+        <div><span class="tk-city-num ${c.hasPrev ? (c.dd >= 0 ? 'prob-delta-up' : 'prob-delta-down') : ''}" style="font-size:13px">${c.hasPrev ? (c.dd >= 0 ? '▲' : '▼') + Math.abs(c.dd).toFixed(1) : '—'}</span><span class="tk-city-lbl">vs yesterday</span></div>
+        <div><span class="tk-city-num">${avgP}</span><span class="tk-city-lbl">avg get-in $</span></div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
 }
 
 // 2 — per-match probability explorer
