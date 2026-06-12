@@ -24,14 +24,16 @@ live at world-cup-bracket-picker.vercel.app). `gh` and `vercel` CLIs are at
 
 ## Architecture
 
-- `index.html` — the entire app; three views (`#view-bracket`, `#view-live`,
-  `#view-explore`) toggled by `setTab()`
+- `index.html` — the entire app; four views (`#view-bracket`, `#view-live`,
+  `#view-explore`, `#view-tickets`) toggled by `setTab()`
 - `server.py` — Flask app serving index.html + all `/api` routes. **Vercel deploys this
   Flask app via its Python/Flask preset and routes `/api/*` through it** (confirmed via
   prod tracebacks) — so server-side changes must land in `server.py`, not just `api/`
 - `api/simulate.py` / `api/final.py` / `api/brackets.py` — standalone Vercel Python
   handlers kept in parity with the Flask routes in case routing ever switches to
   per-function mode; they are NOT what answers in prod today
+- `vercel.json` — rewrites pinning the three `/api/*` paths ahead of the
+  catch-all `/(.*) → /index.html`; edit it when adding a new API route
 
 ### Bracket state model (`state` in index.html)
 
@@ -80,7 +82,7 @@ Winner") render as TBD.
   recomputed in `computeRatings()` after every fetch; rendered as ▲/▼ deltas and used
   by all simulations.
 
-### Ticket analytics (Tickets tab)
+### Ticket analytics (Tickets Analysis tab)
 
 Monte Carlo over the remaining tournament (5,000 sims, ~600 ms, synchronous in
 `runTicketsMC()`), independent of the user's bracket picks. Anchoring, in priority
@@ -128,9 +130,12 @@ My inventory auto-opens when holdings exist). Shared row helpers `rowTrend()` /
 - Hot Tickets, per-round match explorer, reach matrix, title movers (`wcMCPrev`).
 
 Prices (`wcPrices`: gameKey→get-in $) are manual per-game inputs, or auto-filled by
-the optional SeatGeek feed (`fetchSeatGeekPrices()`, free `client_id` in `wcSeatGeekKey`,
-matched to games by venue + kickoff). With ≥3 priced games, value tags
-(UNDERPRICED/FAIR/RICH) compare $/demand vs the median (`medianVpd()`).
+the optional cheapest-ticket feeds (`priceFeedSetup()` → `refreshPriceFeeds()`):
+Ticketmaster Discovery (`wcTicketmasterKey`) + SeatGeek (`wcSeatGeekKey`), both free
+keys prompted on first use. Quotes are matched to games by venue + kickoff (±2 h),
+the minimum across sources wins, and feed quotes overwrite stored prices (they ARE
+the current cheapest ask). With ≥3 priced games, value tags (UNDERPRICED/FAIR/RICH)
+compare $/demand vs the median (`medianVpd()`).
 
 ### Shared brackets (Explore)
 
