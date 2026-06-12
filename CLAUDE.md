@@ -102,8 +102,11 @@ guesses). Views, top to bottom:
 - **Buy board** (always visible, the hero): `buildTiers()` grades every `gameRows()`
   row S→D by buy score = 40·demand pctile + 20·scarcity pctile + 15·certainty +
   10·momentum ± value adj + host bonus. Tier cuts are relative (S≈top 7%, A 12%,
-  B 18%, C 25%, D rest). Each card carries the highest-ranked thesis it fits + up to
-  5 cross-signal rationale bullets. S/A render expanded; B/C/D are folds.
+  B 18%, C 25%, D rest). Each card carries its headline thesis [in brackets] + up to
+  5 cross-signal rationale bullets. S/A render expanded, B is a fold; C (Speculative)
+  and D (Pass) render below a "Supporting details & analysis" divider with the rest.
+  `thesisByKey()`/`thesisTag()` (cached per render) put the same bracketed thesis on
+  game rows in Hot tickets, Since yesterday, My inventory, and the match explorer.
 - **Theses**: `thesisList()` buckets `gameRows()` into investment archetypes
   (blue-chip locks, host gravity, small-building squeeze, trophy rounds, superpower
   lottery, momentum rides, mispriced paper — the last only with ≥3 entered prices);

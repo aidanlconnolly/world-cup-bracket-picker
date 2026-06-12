@@ -266,6 +266,8 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 .champion-flag { font-size: 72px; display: block; margin-bottom: 12px; }
 .champion-name { font-size: 36px; font-weight: 800; color: var(--gold); }
 .champion-subtitle { font-size: 14px; color: var(--muted); margin-top: 6px; }
+.champion-publish { margin-top: 18px; }
+.champion-publish-sub { font-size: 11px; color: var(--muted); margin-top: 8px; }
 .awards-grid { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; max-width: 900px; margin: 0 auto; }
 .award-card {
   background: var(--card-bg); border: 1px solid var(--card-border);
@@ -450,6 +452,8 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 .tk-tier-badge.tD { background: rgba(255,107,107,0.1); color: #ff6b6b; border: 1px solid rgba(255,107,107,0.25); }
 .tk-tier-cardhead { text-transform: none; font-size: 12.5px; letter-spacing: 0; }
 .tk-tier-thesis { font-size: 11px; margin-top: 2px; color: var(--gold); }
+.tk-thx { font-size: 10px; font-weight: 600; color: var(--gold); opacity: 0.85; white-space: nowrap; text-transform: none; letter-spacing: 0; }
+.tk-divider { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 34px 0 2px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.12); font-size: 14px; font-weight: 700; }
 .tk-bullets { margin: 8px 0 0; padding-left: 16px; }
 .tk-bullets li { font-size: 11px; color: var(--muted); line-height: 1.45; margin: 2px 0; }
 .tk-tier-foot { display: flex; align-items: center; gap: 8px; margin-top: 10px; justify-content: flex-end; }
@@ -506,7 +510,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
     <button id="tab-btn-bracket" class="active" onclick="setTab('bracket')">Bracket</button>
     <button id="tab-btn-live" onclick="setTab('live')">Matches <span id="live-nav-dot" class="live-nav-dot" style="display:none"></span></button>
     <button id="tab-btn-explore" onclick="setTab('explore')">🌍 Explore</button>
-    <button id="tab-btn-tickets" onclick="setTab('tickets')">🎟 Tickets</button>
+    <button id="tab-btn-tickets" onclick="setTab('tickets')">🎟 Tickets Analysis</button>
   </div>
   <div class="nav-links">
     <a href="#groups-section">Groups</a>
@@ -587,11 +591,11 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 
 <div id="view-tickets" style="display:none">
 <section id="tickets-section">
-  <h2>Ticket Analytics</h2>
+  <h2>Tickets Analysis</h2>
   <div class="live-controls">
     <span style="font-size:13px;color:var(--muted)" id="mc-meta">Monte Carlo over the remaining tournament, anchored to real results + live odds</span>
     <span class="live-updated" id="mc-updated"></span>
-    <button class="btn" onclick="priceFeedSetup()" title="Auto-fill get-in prices from SeatGeek (free client_id)">💵 Prices</button>
+    <button class="btn" onclick="priceFeedSetup()" title="Auto-fill cheapest get-in prices from Ticketmaster + SeatGeek (free API keys)">💵 Cheapest tickets</button>
     <button class="btn btn-gold" onclick="computeTickets(true)">⟳ Recompute</button>
   </div>
   <div id="tickets-body"><p class="live-empty">Open this tab to run simulations…</p></div>
@@ -1493,6 +1497,8 @@ function renderChampion() {
     <span class="champion-flag">${flag}</span>
     <div class="champion-name">${champion}</div>
     <div class="champion-subtitle">2026 FIFA World Cup Champions</div>
+    ${viewing ? '' : `<button class="btn btn-gold champion-publish" onclick="publishBracket()">🌍 Publish this bracket</button>
+    <div class="champion-publish-sub">your call is in — put it on the Explore tab for the group to see</div>`}
   `;
 
   let awards = '';
@@ -2339,8 +2345,10 @@ function renderTickets() {
     `Anchored to ${mc.lockedResults} real result${mc.lockedResults === 1 ? '' : 's'} + ${mc.oddsUsed} live odds (DraftKings via ESPN)`;
   const body = document.getElementById('tickets-body');
   if (!mc.runs) { body.innerHTML = '<p class="live-empty">No simulation data yet.</p>'; return; }
-  _rowsCache = null;
-  body.innerHTML = tierBoardHTML() + thesesHTML() + sinceYesterdayHTML() + inventoryHTML()
+  _rowsCache = null; _thesisMap = null; _tiersCache = null;
+  body.innerHTML = tierBoardHTML()
+    + `<div class="tk-divider">🔬 Supporting details & analysis <span class="tk-sub">long shots, passes, and the data slices behind the board — open any section</span></div>`
+    + supportingTiersHTML() + thesesHTML() + sinceYesterdayHTML() + inventoryHTML()
     + cityBoardHTML() + hotTicketsHTML() + matchExplorerHTML() + reachMatrixHTML() + moversHTML();
 }
 
@@ -2483,47 +2491,84 @@ function setKeyTeam(key, team) {
   renderTickets();
 }
 
-// Optional auto price feed: SeatGeek's public API (free client_id) exposes
-// lowest_price per event; matched to our games by venue + kickoff time.
+// Optional auto price feeds: cheapest listed price per game, taken as the
+// minimum across every configured source (each key is free):
+//  - Ticketmaster Discovery API (`wcTicketmasterKey`, developer.ticketmaster.com)
+//  - SeatGeek (`wcSeatGeekKey`, seatgeek.com → account → developer)
+// Events are matched to our games by venue + kickoff within 2 h. A feed quote
+// is the current cheapest ask, so it overwrites whatever was stored before.
 async function priceFeedSetup() {
-  let key = lsGet('wcSeatGeekKey', '');
-  if (!key) {
-    key = prompt('SeatGeek client_id (free at seatgeek.com → account → developer).\nLeave blank to keep entering get-in prices by hand:', '');
-    if (!key || !key.trim()) return;
-    lsSet('wcSeatGeekKey', key.trim());
+  let tm = lsGet('wcTicketmasterKey', ''), sg = lsGet('wcSeatGeekKey', '');
+  if (!tm && !sg) {
+    tm = (prompt('Ticketmaster API key (free at developer.ticketmaster.com).\nLeave blank to skip:', '') || '').trim();
+    if (tm) lsSet('wcTicketmasterKey', tm);
+    sg = (prompt('SeatGeek client_id (free at seatgeek.com → account → developer).\nLeave blank to skip:', '') || '').trim();
+    if (sg) lsSet('wcSeatGeekKey', sg);
+    if (!tm && !sg) { showToast('No feed keys — enter get-in prices by hand'); return; }
   }
-  await fetchSeatGeekPrices();
+  await refreshPriceFeeds();
 }
 
-async function fetchSeatGeekPrices() {
+function matchRowByVenueTime(rows, venueName, isoTime) {
+  const vk = venueKey(venueName || '');
+  const t = new Date(isoTime).getTime();
+  return rows.find(r => venueKey(r.venue) === vk && Math.abs(new Date(r.date).getTime() - t) < 2 * 36e5);
+}
+
+const keepMin = (quotes, key, p) => { if (!(quotes[key] > 0) || p < quotes[key]) quotes[key] = p; };
+
+async function fetchSeatGeekQuotes(rows, quotes) {
   const key = lsGet('wcSeatGeekKey', '');
   if (!key) return;
-  showToast('Fetching SeatGeek prices…');
-  try {
-    let events = [];
-    for (let page = 1; page <= 2; page++) {
-      const r = await fetch(`https://api.seatgeek.com/2/events?client_id=${encodeURIComponent(key)}&q=fifa+world+cup&per_page=100&page=${page}`);
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const d = await r.json();
-      events = events.concat(d.events || []);
-      if ((d.events || []).length < 100) break;
-    }
-    let filled = 0;
-    const rows = gameRows();
-    for (const ev of events) {
-      const lo = ev.stats && ev.stats.lowest_price;
-      if (!lo) continue;
-      const evVenue = venueKey((ev.venue && ev.venue.name) || '');
-      const evTime = new Date(ev.datetime_utc + 'Z').getTime();
-      const row = rows.find(r => venueKey(r.venue) === evVenue && Math.abs(new Date(r.date).getTime() - evTime) < 2 * 36e5);
-      if (row) { prices[row.key] = lo; filled++; }
-    }
-    lsSet('wcPrices', prices);
-    renderTickets();
-    showToast(filled ? `💵 Filled ${filled} get-in prices from SeatGeek` : 'SeatGeek responded but no listings matched');
-  } catch {
-    showToast('SeatGeek fetch failed — check your client_id');
+  let events = [];
+  for (let page = 1; page <= 2; page++) {
+    const r = await fetch(`https://api.seatgeek.com/2/events?client_id=${encodeURIComponent(key)}&q=fifa+world+cup&per_page=100&page=${page}`);
+    if (!r.ok) throw new Error('SeatGeek HTTP ' + r.status);
+    const d = await r.json();
+    events = events.concat(d.events || []);
+    if ((d.events || []).length < 100) break;
   }
+  for (const ev of events) {
+    const lo = ev.stats && ev.stats.lowest_price;
+    if (!lo) continue;
+    const row = matchRowByVenueTime(rows, ev.venue && ev.venue.name, ev.datetime_utc + 'Z');
+    if (row) keepMin(quotes, row.key, lo);
+  }
+}
+
+async function fetchTicketmasterQuotes(rows, quotes) {
+  const key = lsGet('wcTicketmasterKey', '');
+  if (!key) return;
+  for (let page = 0; page < 5; page++) {
+    const r = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${encodeURIComponent(key)}&keyword=${encodeURIComponent('FIFA World Cup')}&size=100&page=${page}&sort=date,asc`);
+    if (!r.ok) throw new Error('Ticketmaster HTTP ' + r.status);
+    const d = await r.json();
+    const evs = (d._embedded && d._embedded.events) || [];
+    for (const ev of evs) {
+      const lo = (ev.priceRanges || []).reduce((m, p) => p.min > 0 && (m == null || p.min < m) ? p.min : m, null);
+      if (lo == null) continue;
+      const ven = ev._embedded && ev._embedded.venues && ev._embedded.venues[0];
+      const when = ev.dates && ev.dates.start && ev.dates.start.dateTime;
+      if (!when) continue;
+      const row = matchRowByVenueTime(rows, ven && ven.name, when);
+      if (row) keepMin(quotes, row.key, lo);
+    }
+    if (evs.length < 100 || page >= ((d.page && d.page.totalPages) || 1) - 1) break;
+  }
+}
+
+async function refreshPriceFeeds() {
+  showToast('Fetching cheapest tickets…');
+  const rows = gameRows();
+  const quotes = {};
+  const results = await Promise.allSettled([fetchTicketmasterQuotes(rows, quotes), fetchSeatGeekQuotes(rows, quotes)]);
+  const failed = results.filter(x => x.status === 'rejected').length;
+  const filled = Object.keys(quotes).length;
+  Object.assign(prices, quotes);
+  lsSet('wcPrices', prices);
+  renderTickets();
+  if (filled) showToast(`💵 Cheapest get-in filled for ${filled} game${filled > 1 ? 's' : ''}${failed ? ' (one feed failed)' : ''}`);
+  else showToast(failed ? 'Price feeds failed — check your API keys' : 'Feeds responded but no listings matched');
 }
 
 // 00 — investment theses: archetype playbook, ranked by edge
@@ -2626,6 +2671,20 @@ function thesesHTML() {
     'archetype playbook, ranked — edge = conviction × demand of top targets + momentum · a game can serve several theses');
 }
 
+// Headline thesis per game — the highest-ranked archetype each game fits,
+// shown [in brackets] wherever a game is listed. Cache resets per render.
+let _thesisMap = null;
+function thesisByKey() {
+  if (_thesisMap) return _thesisMap;
+  _thesisMap = {};
+  for (const d of thesisList()) for (const g of d.games) if (!_thesisMap[g.key]) _thesisMap[g.key] = d;
+  return _thesisMap;
+}
+function thesisTag(key) {
+  const d = thesisByKey()[key];
+  return d ? `<span class="tk-thx">[${d.icon} ${d.name}]</span>` : '';
+}
+
 // 000 — the Buy board: every remaining game graded S→D. One composite buy
 // score mixes every signal computed elsewhere on this tab:
 //   40 × demand percentile        (Hot-tickets logic)
@@ -2637,12 +2696,14 @@ function thesesHTML() {
 // Tiers are relative to the remaining slate: S ≈ top 7%, A next 12%,
 // B next 18%, C next 25%, D the rest. Each game carries the highest-ranked
 // thesis it fits plus up to 5 cross-signal rationale bullets.
+let _tiersCache = null;
 function buildTiers() {
+  if (_tiersCache) return _tiersCache;
   const rows = gameRows();
   const n = rows.length;
   if (!n) return { tiers: [], n: 0 };
   const prev = prevDailySnapshot();
-  const theses = thesisList();
+  const tmap = thesisByKey();
   const med = medianVpd();
   const fl = t => TEAMS[t]?.flag || '';
   const scarcity = r => { const v = VENUES[venueKey(r.venue)]; return v ? r.score / v.cap * 1000 : 0; };
@@ -2667,7 +2728,7 @@ function buildTiers() {
     }
     const score = 40 * pctl(demands, r.score) + 20 * pctl(scars, scarcity(r))
       + 15 * cert + 10 * mom + valAdj + (h && h.ev >= 6 ? 8 : 0);
-    const thesis = theses.find(d => d.games.some(g => g.key === r.key)) || null;
+    const thesis = tmap[r.key] || null;
 
     const bullets = [];
     bullets.push(`#${demandRank[r.key]} of ${n} on the demand board — ${r.score.toFixed(1)} expected fanbase pull`);
@@ -2719,34 +2780,44 @@ function buildTiers() {
     i += count;
     if (items.length) tiers.push({ t: defs[k][0], title: defs[k][1], desc: defs[k][2], items });
   }
-  return { tiers, n };
+  _tiersCache = { tiers, n };
+  return _tiersCache;
 }
 
+function tierCardHTML(it) {
+  const r = it.r;
+  return `<div class="tk-match">
+    <div class="tk-match-head tk-tier-cardhead"><span>${r.label}</span><span class="tk-score">${Math.round(it.score)}</span></div>
+    <div class="tk-match-venue">${fmtKickoff(r.date)} · ${r.venue}</div>
+    <div class="tk-tier-thesis">${it.thesis ? `[${it.thesis.icon} ${it.thesis.name}]` : '[no thesis — demand-only paper]'}</div>
+    <ul class="tk-bullets">${it.bullets.map(x => `<li>${x}</li>`).join('')}</ul>
+    <div class="tk-tier-foot">
+      <input class="tk-price" type="number" placeholder="$" value="${prices[r.key] || ''}" onchange="setPrice('${r.key}', this.value)" title="get-in price">
+      <button class="tk-star${watchlist[r.key] ? ' on' : ''}" onclick="toggleWatch('${r.key}')" title="add to inventory">${watchlist[r.key] ? '★' : '☆'}</button>
+    </div>
+  </div>`;
+}
+const tierGridHTML = tr => `<div class="tk-tier-grid">${tr.items.map(tierCardHTML).join('')}</div>`;
+const tierFoldHTML = tr => fold('tier' + tr.t,
+  `<span class="tk-tier-badge t${tr.t}">${tr.t}</span> ${tr.title}`, tierGridHTML(tr),
+  `${tr.desc} · ${tr.items.length} game${tr.items.length > 1 ? 's' : ''}`);
+
+// Actionable slice of the board: S and A expanded, B as a fold.
 function tierBoardHTML() {
   const { tiers, n } = buildTiers();
   if (!n) return '';
-  const card = it => {
-    const r = it.r;
-    return `<div class="tk-match">
-      <div class="tk-match-head tk-tier-cardhead"><span>${r.label}</span><span class="tk-score">${Math.round(it.score)}</span></div>
-      <div class="tk-match-venue">${fmtKickoff(r.date)} · ${r.venue}</div>
-      <div class="tk-tier-thesis">${it.thesis ? `${it.thesis.icon} ${it.thesis.name}` : 'no thesis fits — demand-only paper'}</div>
-      <ul class="tk-bullets">${it.bullets.map(x => `<li>${x}</li>`).join('')}</ul>
-      <div class="tk-tier-foot">
-        <input class="tk-price" type="number" placeholder="$" value="${prices[r.key] || ''}" onchange="setPrice('${r.key}', this.value)" title="get-in price">
-        <button class="tk-star${watchlist[r.key] ? ' on' : ''}" onclick="toggleWatch('${r.key}')" title="add to inventory">${watchlist[r.key] ? '★' : '☆'}</button>
-      </div>
-    </div>`;
-  };
-  const grid = tr => `<div class="tk-tier-grid">${tr.items.map(card).join('')}</div>`;
   const upper = tiers.filter(tr => tr.t === 'S' || tr.t === 'A').map(tr => `
     <div class="tk-tier-head"><span class="tk-tier-badge t${tr.t}">${tr.t}</span> ${tr.title} <span class="tk-tier-desc">${tr.desc} · ${tr.items.length} game${tr.items.length > 1 ? 's' : ''}</span></div>
-    ${grid(tr)}`).join('');
-  const lower = tiers.filter(tr => 'BCD'.includes(tr.t)).map(tr =>
-    fold('tier' + tr.t, `<span class="tk-tier-badge t${tr.t}">${tr.t}</span> ${tr.title}`, grid(tr),
-      `${tr.desc} · ${tr.items.length} game${tr.items.length > 1 ? 's' : ''}`)).join('');
+    ${tierGridHTML(tr)}`).join('');
+  const bFold = tiers.filter(tr => tr.t === 'B').map(tierFoldHTML).join('');
   return `<h3 class="tk-h">💰 Buy board <span class="tk-sub">every remaining game graded S→D · score = 40·demand pctile + 20·scarcity pctile + 15·certainty + 10·momentum ± value ± host</span></h3>`
-    + upper + lower;
+    + upper + bFold;
+}
+
+// C (Speculative) and D (Pass) live below the divider with the analysis.
+function supportingTiersHTML() {
+  const { tiers } = buildTiers();
+  return tiers.filter(tr => tr.t === 'C' || tr.t === 'D').map(tierFoldHTML).join('');
 }
 
 // 0 — starred holdings with hold/sell signals and P/L
@@ -2776,7 +2847,7 @@ function inventoryHTML() {
       : '';
     return `<div class="tk-row">
       <div class="tk-main">
-        <div class="tk-label">${r.label} ${valueTag(r, med)}</div>
+        <div class="tk-label">${r.label} ${thesisTag(key)} ${valueTag(r, med)}</div>
         <div class="tk-detail">${fmtKickoff(r.date)} · ${r.venue}${pl}</div>
       </div>
       ${teamSel}
@@ -2816,7 +2887,7 @@ function sinceYesterdayHTML() {
   return fold('moves', '🔔 Since yesterday', `<div class="tk-board">${moves.slice(0, 8).map(({ r, dd, probMove }) => `
     <div class="tk-row">
       <div class="tk-main">
-        <div class="tk-label">${r.label}</div>
+        <div class="tk-label">${r.label} ${thesisTag(r.key)}</div>
         <div class="tk-detail">${fmtKickoff(r.date)} · ${r.venue}${probMove ? ' · ' + probMove : ''}</div>
       </div>
       <span class="${dd >= 0 ? 'prob-delta-up' : 'prob-delta-down'}" style="font-size:13px;white-space:nowrap">${dd >= 0 ? '▲' : '▼'}${Math.abs(dd).toFixed(1)} demand</span>
@@ -2833,7 +2904,7 @@ function hotTicketsHTML() {
     <div class="tk-row">
       <span class="tk-rank">${i + 1}</span>
       <div class="tk-main">
-        <div class="tk-label">${r.label} ${valueTag(r, med)}</div>
+        <div class="tk-label">${r.label} ${thesisTag(r.key)} ${valueTag(r, med)}</div>
         <div class="tk-detail">${fmtKickoff(r.date)} · ${r.venue}${r.driver ? ' · ' + r.driver : ''}</div>
       </div>
       <input class="tk-price" type="number" placeholder="$" value="${prices[r.key] || ''}" onchange="setPrice('${r.key}', this.value)" title="get-in price">
@@ -2893,7 +2964,7 @@ function matchExplorerHTML() {
     const locked = probs.length === 2 && probs[0].p >= 0.995 && probs[1].p >= 0.995;
     const vc = venueCountry(def.venue);
     return `<div class="tk-match">
-      <div class="tk-match-head"><span>${def.label || def.id.toUpperCase()}</span>${locked ? '<span class="tk-locked">LOCKED</span>' : ''}</div>
+      <div class="tk-match-head"><span>${def.label || def.id.toUpperCase()} ${thesisTag(def.id)}</span>${locked ? '<span class="tk-locked">LOCKED</span>' : ''}</div>
       <div class="tk-match-venue">${fmtKickoff(def.date)}<br>${def.venue}</div>
       ${probs.map(({ team, p }) => {
         const host = (team === 'USA' && vc === 'US') || (team === 'Mexico' && vc === 'MX') || (team === 'Canada' && vc === 'CA');
