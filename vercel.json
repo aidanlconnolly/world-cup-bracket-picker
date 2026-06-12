@@ -1,8 +1,24 @@
 {
   "rewrites": [
-    { "source": "/api/simulate", "destination": "/api/simulate" },
-    { "source": "/api/final", "destination": "/api/final" },
-    { "source": "/api/brackets", "destination": "/api/brackets" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/simulate",
+      "destination": "/api/simulate"
+    },
+    {
+      "source": "/api/final",
+      "destination": "/api/final"
+    },
+    {
+      "source": "/api/brackets",
+      "destination": "/api/brackets"
+    },
+    {
+      "source": "/api/prices",
+      "destination": "/api/prices"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }

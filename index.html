@@ -595,7 +595,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
   <div class="live-controls">
     <span style="font-size:13px;color:var(--muted)" id="mc-meta">Monte Carlo over the remaining tournament, anchored to real results + live odds</span>
     <span class="live-updated" id="mc-updated"></span>
-    <button class="btn" onclick="priceFeedSetup()" title="Auto-fill cheapest get-in prices from Ticketmaster + SeatGeek (free API keys)">💵 Cheapest tickets</button>
+    <button class="btn" onclick="priceFeedSetup()" title="Pull cheapest get-in prices (StubHub, via our server) — no account needed">💵 Cheapest tickets</button>
     <button class="btn btn-gold" onclick="computeTickets(true)">⟳ Recompute</button>
   </div>
   <div id="tickets-body"><p class="live-empty">Open this tab to run simulations…</p></div>
@@ -2328,6 +2328,8 @@ async function computeTickets(force = false) {
   renderTickets();
   // record today's demand/probabilities once per day so "since yesterday" has a baseline
   saveDailySnapshot();
+  // auto-pull cheapest get-in prices (keyless server feed) at most every 6 h
+  if (Date.now() - lsGet('wcPricesAt', 0) > 6 * 36e5) refreshPriceFeeds(true);
 }
 
 function setTicketsRound(r) { mc.round = r; renderTickets(); }
@@ -2491,22 +2493,42 @@ function setKeyTeam(key, team) {
   renderTickets();
 }
 
-// Optional auto price feeds: cheapest listed price per game, taken as the
-// minimum across every configured source (each key is free):
-//  - Ticketmaster Discovery API (`wcTicketmasterKey`, developer.ticketmaster.com)
-//  - SeatGeek (`wcSeatGeekKey`, seatgeek.com → account → developer)
-// Events are matched to our games by venue + kickoff within 2 h. A feed quote
-// is the current cheapest ask, so it overwrites whatever was stored before.
-async function priceFeedSetup() {
-  let tm = lsGet('wcTicketmasterKey', ''), sg = lsGet('wcSeatGeekKey', '');
-  if (!tm && !sg) {
-    tm = (prompt('Ticketmaster API key (free at developer.ticketmaster.com).\nLeave blank to skip:', '') || '').trim();
-    if (tm) lsSet('wcTicketmasterKey', tm);
-    sg = (prompt('SeatGeek client_id (free at seatgeek.com → account → developer).\nLeave blank to skip:', '') || '').trim();
-    if (sg) lsSet('wcSeatGeekKey', sg);
-    if (!tm && !sg) { showToast('No feed keys — enter get-in prices by hand'); return; }
+// Cheapest-ticket feeds — no account or sign-up needed. The primary source is
+// our own `/api/prices`, which proxies StubHub's public explore endpoint +
+// event-page JSON-LD server-side (get-in lowPrice per game, keyless).
+// Ticketmaster/SeatGeek fetchers still run as silent extras if API keys were
+// saved in the past — they are never prompted for. The minimum across sources
+// wins per game; feed quotes overwrite stored prices (they ARE the current
+// cheapest ask).
+async function priceFeedSetup() { await refreshPriceFeeds(); }
+
+const normVenue = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+function stubhubVenueKey(name) {
+  const n = normVenue(name);
+  for (const k of Object.keys(VENUES)) if (n.includes(normVenue(k))) return k;
+  for (const [alias, k] of Object.entries(VENUE_ALIAS)) if (n.includes(normVenue(alias))) return k;
+  return null;
+}
+
+async function fetchStubHubQuotes(rows, quotes) {
+  const r = await fetch('/api/prices');
+  if (!r.ok) throw new Error('prices HTTP ' + r.status);
+  const d = await r.json();
+  for (const ev of d.prices || []) {
+    if (!(ev.lowPrice > 0)) continue;
+    const vk = stubhubVenueKey(ev.venue);
+    if (!vk) continue;
+    // StubHub gives the local calendar day; match the nearest game at that
+    // venue within ±30 h (one game per stadium per day, so this is unique)
+    const t = new Date(ev.date + 'T12:00:00Z').getTime();
+    let best = null;
+    for (const row of rows) {
+      if (venueKey(row.venue) !== vk) continue;
+      const diff = Math.abs(new Date(row.date).getTime() - t);
+      if (diff < 30 * 36e5 && (!best || diff < best.diff)) best = { row, diff };
+    }
+    if (best) keepMin(quotes, best.row.key, ev.lowPrice);
   }
-  await refreshPriceFeeds();
 }
 
 function matchRowByVenueTime(rows, venueName, isoTime) {
@@ -2557,18 +2579,31 @@ async function fetchTicketmasterQuotes(rows, quotes) {
   }
 }
 
-async function refreshPriceFeeds() {
-  showToast('Fetching cheapest tickets…');
+let _feedsBusy = false;
+async function refreshPriceFeeds(silent = false) {
+  if (_feedsBusy) return;
+  _feedsBusy = true;
+  if (!silent) showToast('Fetching cheapest tickets…');
   const rows = gameRows();
   const quotes = {};
-  const results = await Promise.allSettled([fetchTicketmasterQuotes(rows, quotes), fetchSeatGeekQuotes(rows, quotes)]);
+  const results = await Promise.allSettled([
+    fetchStubHubQuotes(rows, quotes),
+    fetchTicketmasterQuotes(rows, quotes),
+    fetchSeatGeekQuotes(rows, quotes),
+  ]);
+  _feedsBusy = false;
   const failed = results.filter(x => x.status === 'rejected').length;
   const filled = Object.keys(quotes).length;
-  Object.assign(prices, quotes);
-  lsSet('wcPrices', prices);
-  renderTickets();
-  if (filled) showToast(`💵 Cheapest get-in filled for ${filled} game${filled > 1 ? 's' : ''}${failed ? ' (one feed failed)' : ''}`);
-  else showToast(failed ? 'Price feeds failed — check your API keys' : 'Feeds responded but no listings matched');
+  if (filled) {
+    Object.assign(prices, quotes);
+    lsSet('wcPrices', prices);
+    lsSet('wcPricesAt', Date.now());
+    renderTickets();
+    showToast(`💵 Cheapest get-in filled for ${filled} game${filled > 1 ? 's' : ''} — no sign-up needed`);
+  } else if (!silent) {
+    showToast(failed === results.length ? 'Price feeds unavailable right now — enter get-in $ by hand'
+      : 'Feeds responded but no listings matched');
+  }
 }
 
 // 00 — investment theses: archetype playbook, ranked by edge
@@ -2912,7 +2947,7 @@ function hotTicketsHTML() {
       <span class="tk-score">${r.score.toFixed(1)}</span>
       <button class="tk-star${watchlist[r.key] ? ' on' : ''}" onclick="toggleWatch('${r.key}')" title="add to inventory">${watchlist[r.key] ? '★' : '☆'}</button>
     </div>`).join('')}</div>`,
-  'demand = Σ P(appears) × fanbase weight, hosts ×1.5 at home · enter get-in $ to unlock value tags');
+  'demand = Σ P(appears) × fanbase weight, hosts ×1.5 at home · get-in $ auto-fills from StubHub, or enter your own');
 }
 
 // 2.5 — per-city scarcity, trend, and hold/sell lean

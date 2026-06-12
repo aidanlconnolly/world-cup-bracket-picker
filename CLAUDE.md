@@ -29,11 +29,11 @@ live at world-cup-bracket-picker.vercel.app). `gh` and `vercel` CLIs are at
 - `server.py` — Flask app serving index.html + all `/api` routes. **Vercel deploys this
   Flask app via its Python/Flask preset and routes `/api/*` through it** (confirmed via
   prod tracebacks) — so server-side changes must land in `server.py`, not just `api/`
-- `api/simulate.py` / `api/final.py` / `api/brackets.py` — standalone Vercel Python
-  handlers kept in parity with the Flask routes in case routing ever switches to
-  per-function mode; they are NOT what answers in prod today
-- `vercel.json` — rewrites pinning the three `/api/*` paths ahead of the
-  catch-all `/(.*) → /index.html`; edit it when adding a new API route
+- `api/simulate.py` / `api/final.py` / `api/brackets.py` / `api/prices.py` —
+  standalone Vercel Python handlers kept in parity with the Flask routes in case
+  routing ever switches to per-function mode; they are NOT what answers in prod today
+- `vercel.json` — rewrites pinning the `/api/*` paths ahead of the catch-all
+  `/(.*) → /index.html`; edit it when adding a new API route
 
 ### Bracket state model (`state` in index.html)
 
@@ -129,13 +129,19 @@ My inventory auto-opens when holdings exist). Shared row helpers `rowTrend()` /
   total demand, yesterday trend, avg entered price, aggregated hold/sell lean.
 - Hot Tickets, per-round match explorer, reach matrix, title movers (`wcMCPrev`).
 
-Prices (`wcPrices`: gameKey→get-in $) are manual per-game inputs, or auto-filled by
-the optional cheapest-ticket feeds (`priceFeedSetup()` → `refreshPriceFeeds()`):
-Ticketmaster Discovery (`wcTicketmasterKey`) + SeatGeek (`wcSeatGeekKey`), both free
-keys prompted on first use. Quotes are matched to games by venue + kickoff (±2 h),
-the minimum across sources wins, and feed quotes overwrite stored prices (they ARE
-the current cheapest ask). With ≥3 priced games, value tags (UNDERPRICED/FAIR/RICH)
-compare $/demand vs the median (`medianVpd()`).
+Prices (`wcPrices`: gameKey→get-in $) auto-fill keylessly — no sign-up — or are
+entered by hand. Primary feed is our own `/api/prices`: a server-side StubHub
+scrape (discovery = the World Cup grouping page `grouping/45410` + the public
+explore feed; get-in = event-page JSON-LD `AggregateOffer.lowPrice`). Coverage is
+partial (soonest games first — the tradeable ones) and the route caches 30 min and
+degrades to `[]` when StubHub's edge 202-challenges the client (it does this to
+bursty or datacenter IPs — keep request volume low). The client auto-pulls after a
+Tickets MC run at most every 6 h (`wcPricesAt`); Ticketmaster/SeatGeek fetchers
+still run as silent extras if keys were saved (`wcTicketmasterKey`/`wcSeatGeekKey`)
+but are never prompted for. Quotes match games by venue + kickoff, minimum across
+sources wins, and feed quotes overwrite stored prices (they ARE the current
+cheapest ask). With ≥3 priced games, value tags (UNDERPRICED/FAIR/RICH) compare
+$/demand vs the median (`medianVpd()`).
 
 ### Shared brackets (Explore)
 
