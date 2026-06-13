@@ -110,7 +110,9 @@ finals:{final, thirdPlace}}` — `picks` are the 1X2 group calls keyed off ESPN 
   `predStateFrom(predictor)`) builds a real bracket `state` from the derived standings
   + `ko`/`finals`, and `withState(ps, fn)` temporarily swaps the global `state` so
   `resolveSlot`/`assignThirds`/`getThirdPlaces` seed the matchups from your predicted
-  qualifiers. `setPredKO()` stores `{winner,loser}` and `prunePredKO()` cascades —
+  qualifiers. **The matchup teams are seeded but the winner is never pre-picked** —
+  cards read "tap a team to advance" until you choose; `setPredKO()` stores
+  `{winner,loser}`, `resetPredictorKO()` wipes them all, and `prunePredKO()` cascades —
   re-deciding a group or earlier KO drops any now-impossible downstream pick.
 - **Scoring** (`scorePredictor(pd)`): group games grade per real finished match
   (+1 each, `PRED_PTS.group`); knockouts grade by **advancement** vs reality
