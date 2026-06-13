@@ -2665,6 +2665,17 @@ function predPickCount() {
   return Object.keys(predictor.picks).length + Object.keys(predictor.ko).length +
     (predictor.finals.final ? 1 : 0) + (predictor.finals.thirdPlace ? 1 : 0);
 }
+function predKOPickCount() {
+  return Object.keys(predictor.ko).length + (predictor.finals.final ? 1 : 0) + (predictor.finals.thirdPlace ? 1 : 0);
+}
+// Wipe every knockout winner so the bracket is back to seeded-but-unpicked.
+function resetPredictorKO() {
+  predictor.ko = {};
+  predictor.finals = { final: null, thirdPlace: null };
+  lsSet('wcPredictor', predictor);
+  renderPredictor();
+  showToast('Knockout picks cleared — no winners selected');
+}
 
 function setPredFilter(f) { predFilter = f; renderPredictor(); }
 
@@ -2756,7 +2767,7 @@ function predKOCardHTML(def, ps, roundKey, key) {
       ? (advanced ? `<span class="pred-earn win">+${pts}</span>` : `<span class="pred-earn loss">✗ 0</span>`)
       : `<span class="pred-earn" style="color:var(--gold)">${pts} pts on it</span>`;
   } else {
-    tail = `<span class="pred-result">${t1 && t2 ? `worth ${pts} pts` : 'awaiting the previous round'}</span>`;
+    tail = `<span class="pred-result">${t1 && t2 ? `👆 tap a team to advance · ${pts} pts` : 'awaiting the previous round'}</span>`;
   }
   return `<div class="pred-ko-card${isFinal ? ' final-ko' : ''}">
     <div class="pred-ko-when">${isFinal ? '🏆 ' : def.id === 'third-place' ? '🥉 ' : ''}${fmtKickoff(def.date)}<br>${escapeHTML((def.venue || '').split(',')[0])}</div>
@@ -2803,7 +2814,12 @@ function renderPredictor() {
     } else {
       const ps = predBracketState();
       const key = buildAnswerKey();
-      list.innerHTML = `<div class="pred-ko-list">${KO_DEFS[predFilter].map(def => predKOCardHTML(def, ps, predFilter, key)).join('')}</div>`;
+      const koPicked = predKOPickCount();
+      const bar = `<div class="pred-cta-bar">
+        <span class="pcb-prog">Knockouts seeded from your group tables — <b>tap a team</b> in each game to advance them. Nothing is picked for you.</span>
+        ${koPicked ? `<button class="btn" onclick="resetPredictorKO()">↺ Reset knockouts (${koPicked})</button>` : ''}
+      </div>`;
+      list.innerHTML = bar + `<div class="pred-ko-list">${KO_DEFS[predFilter].map(def => predKOCardHTML(def, ps, predFilter, key)).join('')}</div>`;
     }
   }
   document.getElementById('pred-meta').textContent = '';
