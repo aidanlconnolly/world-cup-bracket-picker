@@ -440,6 +440,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 }
 .pred-cta-bar .pcb-prog { font-size: 13px; }
 .pred-cta-bar .pcb-prog b { color: var(--gold); }
+.pred-cta-bar .pcb-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .pred-groups-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 16px; }
 .pred-group-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.25); transition: border-color .15s; }
 .pred-group-card.done { border-color: rgba(46,204,113,0.4); }
@@ -2789,6 +2790,17 @@ function resetPredictorKO() {
   showToast('Knockout picks cleared — no winners selected');
 }
 
+// Wipe every predictor pick (group calls + knockouts) back to a blank slate.
+function resetPredictorAll() {
+  if (predPickCount() && !confirm('Clear all your predictor picks (group games and knockouts)? This can\'t be undone.')) return;
+  predictor.picks = {};
+  predictor.ko = {};
+  predictor.finals = { final: null, thirdPlace: null };
+  lsSet('wcPredictor', predictor);
+  renderPredictor();
+  showToast('All picks cleared — nothing is selected');
+}
+
 function setPredFilter(f) { predFilter = f; renderPredictor(); }
 
 // Jump to the first group still missing a pick and flag it.
@@ -2926,11 +2938,13 @@ function renderPredictor() {
 
   if (predFilter === 'group') {
     const complete = banked === 12;
-    const cta = complete
+    const next = complete
       ? `<button class="btn btn-gold" onclick="setPredFilter('r32')">Predict the knockouts →</button>`
       : `<button class="btn" onclick="gotoFirstMissing()">${12 - banked} group${12 - banked === 1 ? '' : 's'} left — jump to next</button>`;
+    const clear = n ? `<button class="btn" onclick="resetPredictorAll()">↺ Clear all picks (${n})</button>` : '';
     list.innerHTML = `<div class="pred-cta-bar">
-        <span class="pcb-prog"><b>${banked}/12</b> group tables predicted${complete ? ' — knockouts unlocked 🔓' : ''}</span>${cta}
+        <span class="pcb-prog"><b>${banked}/12</b> group tables predicted${complete ? ' — knockouts unlocked 🔓' : ''}</span>
+        <span class="pcb-actions">${clear}${next}</span>
       </div>
       <div class="pred-groups-grid">${Object.keys(GROUPS).map(predGroupCardHTML).join('')}</div>`;
   } else {
