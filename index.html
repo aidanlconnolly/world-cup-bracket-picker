@@ -417,7 +417,6 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
   background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px;
 }
 .pred-when { font-size: 11px; color: var(--muted); width: 150px; flex-shrink: 0; line-height: 1.5; }
-.pred-pick-group { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex: 1; }
 .pred-btn {
   padding: 7px 12px; border-radius: 8px; font-size: 12.5px; cursor: pointer;
   background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); color: var(--text);
@@ -441,30 +440,65 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 }
 .pred-cta-bar .pcb-prog { font-size: 13px; }
 .pred-cta-bar .pcb-prog b { color: var(--gold); }
-.pred-groups-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; }
-.pred-group-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; overflow: hidden; }
-.pred-group-card.done { border-color: rgba(46,204,113,0.45); }
+.pred-groups-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 16px; }
+.pred-group-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.25); transition: border-color .15s; }
+.pred-group-card.done { border-color: rgba(46,204,113,0.4); }
 .pred-group-card.flash { animation: predflash 1.5s ease; }
 @keyframes predflash { 0%,100% { box-shadow: none; } 30% { box-shadow: 0 0 0 3px rgba(255,215,0,0.55); } }
 .pred-group-head {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 12px; font-weight: 800; font-size: 13px; letter-spacing: .5px;
-  background: rgba(255,255,255,0.04); border-bottom: 1px solid var(--card-border);
+  padding: 11px 14px; font-weight: 800; font-size: 14px; letter-spacing: .3px;
+  background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--card-border);
 }
-.pred-group-head span { font-size: 11px; color: var(--muted); font-weight: 600; }
+.pred-group-head span { font-size: 11px; color: var(--muted); font-weight: 700; letter-spacing: .2px; }
 .pred-group-card.done .pred-group-head span { color: #2ecc71; }
-.pred-group-body { display: grid; grid-template-columns: 1fr minmax(150px, 200px); gap: 0; }
+.pred-group-body { display: grid; grid-template-columns: 1fr minmax(156px, 196px); gap: 0; }
 .pred-fixtures { display: flex; flex-direction: column; }
-.pred-fixtures .pred-row { border: none; border-bottom: 1px solid var(--card-border); border-radius: 0; background: transparent; padding: 8px 12px; gap: 8px; }
-.pred-fixtures .pred-when { width: 84px; }
-.pred-fixtures .pred-btn { padding: 5px 8px; font-size: 11.5px; }
-.pred-table-wrap { border-left: 1px solid var(--card-border); padding: 8px; display: flex; align-items: flex-start; }
+.pred-fixtures .pred-row {
+  display: grid; grid-template-columns: 74px 1fr auto; align-items: center; gap: 10px;
+  border: none; border-bottom: 1px solid var(--card-border); border-radius: 0;
+  background: transparent; padding: 9px 14px;
+}
+.pred-fixtures .pred-row:last-child { border-bottom: none; }
+.pred-fixtures .pred-row.has-pick { background: rgba(255,215,0,0.035); }
+.pred-fixtures .pred-when { width: auto; font-size: 10.5px; line-height: 1.4; }
+
+/* segmented Home · × · Away pick control — equal halves so no team dominates */
+.pf-segment { display: grid; grid-template-columns: 1fr 34px 1fr; gap: 5px; }
+.pf-opt {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 40px; padding: 6px 9px; cursor: pointer;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--card-border); border-radius: 9px;
+  color: var(--text); font-size: 11.5px; line-height: 1.15; text-align: center;
+  transition: border-color .12s, background .12s, color .12s;
+}
+.pf-opt .pf-flag { font-size: 14px; flex-shrink: 0; }
+.pf-opt .pf-name { font-weight: 600; }
+.pf-opt.pf-draw .pf-x { font-size: 15px; color: var(--muted); font-weight: 700; }
+.pf-opt:hover:not(:disabled):not(.on) { border-color: rgba(255,215,0,0.45); background: rgba(255,255,255,0.07); }
+.pf-opt.on { background: rgba(255,215,0,0.13); border-color: var(--gold); color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+.pf-opt.on.pf-draw .pf-x { color: var(--gold); }
+.pf-opt:disabled { opacity: 0.4; cursor: default; }
+
+/* played fixture — read-only result line */
+.pf-played { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 9px; }
+.pf-team { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); min-width: 0; }
+.pf-team .pf-flag { font-size: 14px; flex-shrink: 0; }
+.pf-team.home { justify-content: flex-end; text-align: right; }
+.pf-team.away { justify-content: flex-start; }
+.pf-team.won { color: var(--text); font-weight: 700; }
+.pf-score { font-size: 11px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; padding: 2px 8px; background: rgba(255,255,255,0.06); border-radius: 6px; white-space: nowrap; }
+.pred-earn.muted { color: var(--muted); opacity: .6; }
+.pred-earn.live { color: #ff6b6b; min-width: 0; }
+
+.pred-table-wrap { border-left: 1px solid var(--card-border); padding: 10px 12px; display: flex; align-items: flex-start; background: rgba(255,255,255,0.015); }
 .pred-tbd-note, .pred-gate { font-size: 12px; color: var(--muted); padding: 14px; line-height: 1.5; }
 .pred-gate { background: var(--card-bg); border: 1px dashed var(--card-border); border-radius: 10px; text-align: center; }
 .pred-stand { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-.pred-stand td { padding: 3px 5px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.pred-stand td { padding: 5px 5px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.pred-stand tr:last-child td { border-bottom: none; }
 .pred-stand td:first-child { color: var(--muted); width: 14px; }
-.pred-stand td:nth-child(3) { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.pred-stand td:nth-child(3) { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 10.5px; }
 .pred-stand td:last-child { text-align: right; width: 22px; }
 .pred-stand tr.adv td { color: #fff; }
 .pred-stand tr.adv td:first-child { color: var(--gold); }
@@ -734,6 +768,10 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
   .champion-card { padding: 24px 30px; }
   .champion-name { font-size: 26px; }
   .champion-flag { font-size: 54px; }
+  /* predictor: stack the standings table below the fixtures so nothing clips */
+  .pred-groups-grid { grid-template-columns: 1fr; }
+  .pred-group-body { grid-template-columns: 1fr; }
+  .pred-table-wrap { border-left: none; border-top: 1px solid var(--card-border); }
 }
 @media (max-width: 480px) {
   #groups-grid { grid-template-columns: 1fr; }
@@ -2769,27 +2807,41 @@ function gotoFirstMissing() {
 
 function predFixtureRowHTML(m) {
   const pick = predictor.picks[m.id];
-  const pickable = predPickable(m);
-  const q = s => String(s).replace(/'/g, "\\'");
-  const btn = (val, label) =>
-    `<button class="pred-btn${pick === val ? ' on' : ''}" ${pickable ? '' : 'disabled'}
-      onclick="setPredPick('${m.id}','${q(val)}')">${label}</button>`;
-  const lbl = t => `${TEAMS[t.name]?.flag || ''} ${escapeHTML(t.name)}`;
-  const buttons = btn(m.home.name, lbl(m.home)) + btn('DRAW', '🤝') + btn(m.away.name, lbl(m.away));
-  let tail = '';
+  const lbl = t => `<span class="pf-flag">${TEAMS[t.name]?.flag || ''}</span><span class="pf-name">${escapeHTML(t.name)}</span>`;
+
+  // Already played: show the real result as a compact, read-only line.
   if (m.state === 'post') {
     const oc = predOutcome(m);
-    const res = oc === 'DRAW' ? `${m.home.score}–${m.away.score} draw` : `${TEAMS[oc]?.flag || ''} won ${realScore(m)}`;
-    tail = `<span class="pred-result">${res}</span>` + (pick
-      ? (pick === oc ? `<span class="pred-earn win">+${PRED_PTS.group}</span>` : `<span class="pred-earn loss">✗</span>`)
-      : `<span class="pred-earn">—</span>`);
-  } else if (m.state === 'in') {
-    tail = `<span class="pred-result">🔴 live</span>`;
+    const cls = t => oc === 'DRAW' ? 'drew' : oc === t.name ? 'won' : 'lost';
+    const earn = pick == null ? '<span class="pred-earn muted">—</span>'
+      : pick === oc ? `<span class="pred-earn win">+${PRED_PTS.group}</span>`
+      : `<span class="pred-earn loss">✗</span>`;
+    return `<div class="pred-row done">
+      <div class="pred-when">${fmtKickoff(m.date)}</div>
+      <div class="pf-played">
+        <span class="pf-team home ${cls(m.home)}">${lbl(m.home)}</span>
+        <span class="pf-score">${parseInt(m.home.score) || 0}–${parseInt(m.away.score) || 0}</span>
+        <span class="pf-team away ${cls(m.away)}">${lbl(m.away)}</span>
+      </div>
+      ${earn}
+    </div>`;
   }
-  return `<div class="pred-row">
+
+  // Upcoming / live: a balanced segmented control — Home · draw · Away, equal width.
+  const pickable = predPickable(m);
+  const q = s => String(s).replace(/'/g, "\\'");
+  const opt = (val, inner, side) =>
+    `<button class="pf-opt pf-${side}${pick === val ? ' on' : ''}" ${pickable ? '' : 'disabled'}
+      onclick="setPredPick('${m.id}','${q(val)}')">${inner}</button>`;
+  const seg = `<div class="pf-segment">
+      ${opt(m.home.name, lbl(m.home), 'home')}
+      ${opt('DRAW', '<span class="pf-x">×</span>', 'draw')}
+      ${opt(m.away.name, lbl(m.away), 'away')}
+    </div>`;
+  return `<div class="pred-row${pick ? ' has-pick' : ''}">
     <div class="pred-when">${fmtKickoff(m.date)}</div>
-    <div class="pred-pick-group">${buttons}</div>
-    ${tail}
+    ${seg}
+    ${m.state === 'in' ? '<span class="pred-earn live">🔴</span>' : ''}
   </div>`;
 }
 
