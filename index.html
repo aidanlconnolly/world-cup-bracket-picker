@@ -207,8 +207,8 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 .round-label:last-child { min-width: var(--card-w); }
 
 .bracket-scroll { overflow-x: auto; padding-bottom: 16px; -webkit-overflow-scrolling: touch; }
-#bracket-wrap { position: relative; /* height + width set by JS */ }
-#bracket-svg { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
+#bracket-wrap, #pred-bracket-wrap { position: relative; /* height + width set by JS */ }
+#bracket-svg, #pred-bracket-svg { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
 
 /* Match cards */
 .match-card {
@@ -252,7 +252,13 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
   padding: 3px 6px; border-top: 1px solid rgba(255,255,255,0.07);
 }
 .match-venue { font-size: 9px; color: var(--muted); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.match-actions { display: flex; gap: 3px; flex-shrink: 0; }
+.match-actions { display: flex; gap: 3px; flex-shrink: 0; align-items: center; }
+/* predictor KO card: points-on-the-line / earned badge */
+.ko-pts { font-size: 10px; font-weight: 800; letter-spacing: .2px; }
+.ko-pts.on { color: var(--gold); }
+.ko-pts.tbd { color: var(--muted); }
+.ko-pts.win { color: #2ecc71; }
+.ko-pts.loss { color: #ff6b6b; }
 
 .btn-simulate {
   background: rgba(255,215,0,0.12); border: 1px solid rgba(255,215,0,0.25);
@@ -417,14 +423,6 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
   background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px;
 }
 .pred-when { font-size: 11px; color: var(--muted); width: 150px; flex-shrink: 0; line-height: 1.5; }
-.pred-btn {
-  padding: 7px 12px; border-radius: 8px; font-size: 12.5px; cursor: pointer;
-  background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); color: var(--text);
-}
-.pred-btn:hover:not(:disabled) { border-color: var(--gold); }
-.pred-btn.on { background: rgba(255,215,0,0.16); border-color: var(--gold); color: var(--gold); font-weight: 700; }
-.pred-btn:disabled { opacity: 0.45; cursor: default; }
-.pred-result { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .pred-earn { font-size: 13px; font-weight: 800; min-width: 38px; text-align: right; }
 .pred-earn.win { color: #2ecc71; }
 .pred-earn.loss { color: #ff6b6b; }
@@ -441,7 +439,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 .pred-cta-bar .pcb-prog { font-size: 13px; }
 .pred-cta-bar .pcb-prog b { color: var(--gold); }
 .pred-cta-bar .pcb-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.pred-groups-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 16px; }
+.pred-groups-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(450px, 1fr)); gap: 16px; }
 .pred-group-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.25); transition: border-color .15s; }
 .pred-group-card.done { border-color: rgba(46,204,113,0.4); }
 .pred-group-card.flash { animation: predflash 1.5s ease; }
@@ -453,7 +451,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 }
 .pred-group-head span { font-size: 11px; color: var(--muted); font-weight: 700; letter-spacing: .2px; }
 .pred-group-card.done .pred-group-head span { color: #2ecc71; }
-.pred-group-body { display: grid; grid-template-columns: 1fr minmax(156px, 196px); gap: 0; }
+.pred-group-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(170px, 208px); gap: 0; }
 .pred-fixtures { display: flex; flex-direction: column; }
 .pred-fixtures .pred-row {
   display: grid; grid-template-columns: 74px 1fr auto; align-items: center; gap: 10px;
@@ -495,25 +493,16 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 .pred-table-wrap { border-left: 1px solid var(--card-border); padding: 10px 12px; display: flex; align-items: flex-start; background: rgba(255,255,255,0.015); }
 .pred-tbd-note, .pred-gate { font-size: 12px; color: var(--muted); padding: 14px; line-height: 1.5; }
 .pred-gate { background: var(--card-bg); border: 1px dashed var(--card-border); border-radius: 10px; text-align: center; }
-.pred-stand { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.pred-stand { width: 100%; border-collapse: collapse; font-size: 11.5px; table-layout: fixed; }
 .pred-stand td { padding: 5px 5px; border-bottom: 1px solid rgba(255,255,255,0.05); }
 .pred-stand tr:last-child td { border-bottom: none; }
-.pred-stand td:first-child { color: var(--muted); width: 14px; }
-.pred-stand td:nth-child(3) { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 10.5px; }
-.pred-stand td:last-child { text-align: right; width: 22px; }
+.pred-stand td:first-child { color: var(--muted); width: 16px; }
+.pred-stand td:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pred-stand td:nth-child(3) { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 10.5px; width: 46px; }
+.pred-stand td:last-child { text-align: right; width: 24px; }
 .pred-stand tr.adv td { color: #fff; }
 .pred-stand tr.adv td:first-child { color: var(--gold); }
 .pred-stand tr.third td:first-child { color: #f0a030; }
-.pred-ko-list { display: flex; flex-direction: column; gap: 10px; }
-.pred-ko-card {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px;
-  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px;
-}
-.pred-ko-card.final-ko { border-color: var(--gold); }
-.pred-ko-when { font-size: 11px; color: var(--muted); width: 150px; flex-shrink: 0; line-height: 1.5; }
-.pred-ko-teams { display: flex; gap: 8px; align-items: center; flex: 1; flex-wrap: wrap; }
-.pred-ko-vs { color: var(--muted); font-size: 11px; }
-
 /* PUBLISH MODAL */
 #modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100;
@@ -1791,18 +1780,27 @@ function renderThirdPlace() {
 
 // ─── RENDER BRACKET ───────────────────────────────────────────
 function renderBracket() {
-  const rh = document.getElementById('round-headers');
+  paintBracketInto({ headers:'round-headers', wrap:'bracket-wrap', svg:'bracket-svg', prefix:'' },
+    def => matchCardHTML(def), def => isMatchDone(def.id));
+}
+
+// Shared 5-column KO tree painter — used by both the Bracket tab and the Match
+// Predictor. `cardHTML(def)` supplies each match's inner markup; `winnerOf(def)`
+// flags the gold "has-winner" border. Layout, connectors + positioning are
+// identical so the two views look the same.
+function paintBracketInto(ids, cardHTML, winnerOf) {
+  const rh = document.getElementById(ids.headers);
   rh.innerHTML = ['Round of 32','Round of 16','Quarterfinals','Semifinals','Final']
     .map(l => `<div class="round-label">${l}</div>`).join('');
 
   const totalW = COL_W * 4 + CARD_W;
-  const wrap = document.getElementById('bracket-wrap');
+  const wrap = document.getElementById(ids.wrap);
   wrap.style.height = BRACKET_H + 'px';
   wrap.style.width = totalW + 'px';
 
   Array.from(wrap.querySelectorAll('.match-card')).forEach(c => c.remove());
 
-  const svg = document.getElementById('bracket-svg');
+  const svg = document.getElementById(ids.svg);
   svg.innerHTML = '';
   svg.setAttribute('width', totalW);
   svg.setAttribute('height', BRACKET_H);
@@ -1828,9 +1826,14 @@ function renderBracket() {
                 def.id.startsWith('r16') ? COLS.r16 :
                 def.id.startsWith('qf')  ? COLS.qf  :
                 def.id.startsWith('sf')  ? COLS.sf  : COLS.final;
-    const row = MATCH_ROW[def.id];
-    const top = Math.round(row * ROW_H - CARD_H / 2);
-    wrap.appendChild(buildMatchCard(def, col, top));
+    const top = Math.round(MATCH_ROW[def.id] * ROW_H - CARD_H / 2);
+    const div = document.createElement('div');
+    div.className = `match-card${def.id === 'final' ? ' final-card' : ''}${winnerOf(def) ? ' has-winner' : ''}`;
+    div.id = `${ids.prefix}card-${def.id}`;
+    div.style.left = col + 'px';
+    div.style.top = top + 'px';
+    div.innerHTML = cardHTML(def);
+    wrap.appendChild(div);
   }
 }
 
@@ -1857,17 +1860,6 @@ function addSVGLine(svg, x1, y1, x2, y2) {
   line.setAttribute('stroke-width', '2');
   line.setAttribute('stroke-linecap', 'round');
   svg.appendChild(line);
-}
-
-function buildMatchCard(def, left, top) {
-  const div = document.createElement('div');
-  const isFinalMatch = def.id === 'final' || def.id === 'third-place';
-  div.className = `match-card${isFinalMatch && def.id === 'final' ? ' final-card' : ''}${isMatchDone(def.id) ? ' has-winner' : ''}`;
-  div.id = `card-${def.id}`;
-  div.style.left = left + 'px';
-  div.style.top = top + 'px';
-  div.innerHTML = matchCardHTML(def);
-  return div;
 }
 
 // Turn a raw slot code (e.g. "1D", "3rd:B/E/F/I/J", "W:r32-10") into readable
@@ -2601,8 +2593,6 @@ function scoreState(s, key) {
 // bracket's Phase 2.
 const PRED_PTS = { group:1, r32:2, r16:4, qf:8, sf:16, third:8, fin:32 };
 const PRED_STAGES = [['group','Groups'],['r32','R32'],['r16','R16'],['qf','QF'],['sf','SF'],['third','3rd'],['fin','Final']];
-const KO_COUNT = { r32:16, r16:8, qf:4, sf:2, third:1, fin:1 };
-const KO_DEFS = { r32:R32_DEF, r16:R16_DEF, qf:QF_DEF, sf:SF_DEF, third:[THIRD_DEF], fin:[FINAL_DEF] };
 let predictor = lsGet('wcPredictor', { picks:{}, ko:{}, finals:{ final:null, thirdPlace:null } });
 if (!predictor.picks) predictor.picks = {};
 if (!predictor.ko) predictor.ko = {};
@@ -2861,7 +2851,7 @@ function predStandTableHTML(st) {
   return `<table class="pred-stand"><tbody>${st.map((s, i) => `
     <tr class="${i < 2 ? 'adv' : i === 2 ? 'third' : ''}">
       <td>${i + 1}</td>
-      <td>${TEAMS[s.team]?.flag || ''} ${escapeHTML(s.team)}</td>
+      <td title="${escapeHTML(s.team)}">${TEAMS[s.team]?.flag || ''} ${escapeHTML(s.team)}</td>
       <td>${s.w}-${s.d}-${s.l}</td>
       <td><b>${s.pts}</b></td>
     </tr>`).join('')}</tbody></table>`;
@@ -2881,37 +2871,66 @@ function predGroupCardHTML(g) {
     </div></div>`;
 }
 
-function predKOCardHTML(def, ps, roundKey, key) {
+// Inner markup for one predictor knockout card — same chrome as the main bracket
+// card, but tapping a team stores a predictor pick (setPredKO) and the footer
+// shows the points on the line, then +pts/✗0 once reality grades the round.
+function predMatchCardHTML(def, ps, key) {
   const [t1, t2] = predKOTeams(def, ps);
   const rec = predKORec(def.id);
   const pick = rec ? rec.winner : null;
+  const roundKey = def.id === 'final' ? 'fin' : def.id === 'third-place' ? 'third' : def.id.split('-')[0];
   const pts = PRED_PTS[roundKey];
-  const isFinal = def.id === 'final';
   const q = s => String(s).replace(/'/g, "\\'");
-  const btn = (team) => team
-    ? `<button class="pred-btn${pick === team ? ' on' : ''}" onclick="setPredKO('${def.id}','${q(team)}')">${TEAMS[team]?.flag || ''} ${escapeHTML(team)}</button>`
-    : `<button class="pred-btn" disabled>TBD</button>`;
-  // grade once reality knows who advanced out of this round
+
+  const teamRow = (team, slot) => {
+    const isWinner = !!pick && team === pick;
+    const isLoser  = !!pick && !!team && team !== pick;
+    const cls = isWinner ? 'winner' : isLoser ? 'loser' : '';
+    const clickable = !!team && !!t1 && !!t2;
+    const pickAttr = clickable ? `onclick="setPredKO('${def.id}','${q(team)}')"` : '';
+    return `<div class="match-team ${cls}${clickable ? ' pick-hover' : ''}" ${pickAttr}>
+      <span class="flag">${team ? (TEAMS[team]?.flag || '') : ''}</span>
+      ${team
+        ? `<span class="tname">${escapeHTML(team)}</span>`
+        : `<span class="tbd-slot" style="color:var(--muted);font-size:10px;flex:1;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${slotLabelText(slot)}</span>`}
+    </div>`;
+  };
+
   const realSet = roundKey === 'r32' ? key.reached.r16 : roundKey === 'r16' ? key.reached.qf
     : roundKey === 'qf' ? key.reached.sf : roundKey === 'sf' ? key.reached.fin : null;
-  let tail = '';
+  let badge;
   if (pick) {
     const advanced = roundKey === 'fin' ? (key.champ && pick === key.champ)
       : roundKey === 'third' ? (key.third && pick === key.third)
       : realSet ? realSet.has(pick) : false;
     const graded = roundKey === 'fin' ? !!key.champ : roundKey === 'third' ? !!key.third
-      : realSet ? realSet.size > 0 || key.koPlayed > 0 : false;
-    tail = graded
-      ? (advanced ? `<span class="pred-earn win">+${pts}</span>` : `<span class="pred-earn loss">✗ 0</span>`)
-      : `<span class="pred-earn" style="color:var(--gold)">${pts} pts on it</span>`;
+      : realSet ? (realSet.size > 0 || key.koPlayed > 0) : false;
+    badge = graded
+      ? (advanced ? `<span class="ko-pts win">+${pts}</span>` : `<span class="ko-pts loss">✗ 0</span>`)
+      : `<span class="ko-pts on">+${pts}</span>`;
   } else {
-    tail = `<span class="pred-result">${t1 && t2 ? `👆 tap a team to advance · ${pts} pts` : 'awaiting the previous round'}</span>`;
+    badge = t1 && t2 ? `<span class="ko-pts tbd">+${pts}</span>` : '';
   }
-  return `<div class="pred-ko-card${isFinal ? ' final-ko' : ''}">
-    <div class="pred-ko-when">${isFinal ? '🏆 ' : def.id === 'third-place' ? '🥉 ' : ''}${fmtKickoff(def.date)}<br>${escapeHTML((def.venue || '').split(',')[0])}</div>
-    <div class="pred-ko-teams">${btn(t1)} <span class="pred-ko-vs">vs</span> ${btn(t2)}</div>
-    ${tail}
-  </div>`;
+
+  const labelHTML = def.label
+    ? `<div class="match-label${def.id === 'third-place' ? ' third-label' : ''}">${def.label}</div>` : '';
+  return `${labelHTML}
+    <div class="match-teams">
+      ${teamRow(t1, def.s1)}
+      <div class="match-divider"></div>
+      ${teamRow(t2, def.s2)}
+    </div>
+    <div class="match-footer">
+      <span class="match-venue">${escapeHTML((def.venue || '').split(',')[0])}</span>
+      <div class="match-actions">${badge}</div>
+    </div>`;
+}
+
+// Paint the predictor's knockout tree (seeded from your predicted qualifiers)
+// with the shared bracket painter, so it matches the Bracket tab exactly.
+function renderPredBracket(ps, key) {
+  paintBracketInto({ headers:'pred-round-headers', wrap:'pred-bracket-wrap', svg:'pred-bracket-svg', prefix:'pred-' },
+    def => predMatchCardHTML(def, ps, key), def => !!predKORec(def.id));
 }
 
 function renderPredictor() {
@@ -2933,13 +2952,15 @@ function renderPredictor() {
       `<span class="sb-pill">${l} <b>${sc.byStage[k]}</b></span>`).join('')}</div>
     <span class="sb-note">${n} pick${n === 1 ? '' : 's'} made · ${sc.correct}/${sc.graded} group games right</span>
   </div>`;
-  filters.innerHTML = PRED_STAGES.map(([k, l]) =>
-    `<button class="chip${predFilter === k ? ' active' : ''}" onclick="setPredFilter('${k}')">${l} (${k === 'group' ? banked + '/12' : KO_COUNT[k]})</button>`).join('');
+  const koPicked = predKOPickCount();
+  filters.innerHTML = [['group', '⚽ Group stage', `${banked}/12`],
+      ['ko', '🏆 Knockout bracket', banked === 12 ? `${koPicked}/32` : '🔒']]
+    .map(([k, l, c]) => `<button class="chip${predFilter === k ? ' active' : ''}" onclick="setPredFilter('${k}')">${l} (${c})</button>`).join('');
 
   if (predFilter === 'group') {
     const complete = banked === 12;
     const next = complete
-      ? `<button class="btn btn-gold" onclick="setPredFilter('r32')">Predict the knockouts →</button>`
+      ? `<button class="btn btn-gold" onclick="setPredFilter('ko')">Predict the knockouts →</button>`
       : `<button class="btn" onclick="gotoFirstMissing()">${12 - banked} group${12 - banked === 1 ? '' : 's'} left — jump to next</button>`;
     const clear = n ? `<button class="btn" onclick="resetPredictorAll()">↺ Clear all picks (${n})</button>` : '';
     list.innerHTML = `<div class="pred-cta-bar">
@@ -2954,12 +2975,15 @@ function renderPredictor() {
     } else {
       const ps = predBracketState();
       const key = buildAnswerKey();
-      const koPicked = predKOPickCount();
+      const champ = predictor.finals.final ? predictor.finals.final.winner : null;
       const bar = `<div class="pred-cta-bar">
-        <span class="pcb-prog">Knockouts seeded from your group tables — <b>tap a team</b> in each game to advance them. Nothing is picked for you.</span>
-        ${koPicked ? `<button class="btn" onclick="resetPredictorKO()">↺ Reset knockouts (${koPicked})</button>` : ''}
+        <span class="pcb-prog">Knockouts seeded from your group tables — <b>tap a team</b> in each game to advance them.${champ ? ` Your champion: ${TEAMS[champ]?.flag || ''} <b>${escapeHTML(champ)}</b>.` : ' Nothing is picked for you.'}</span>
+        <span class="pcb-actions">${koPicked ? `<button class="btn" onclick="resetPredictorKO()">↺ Reset knockouts (${koPicked})</button>` : ''}</span>
       </div>`;
-      list.innerHTML = bar + `<div class="pred-ko-list">${KO_DEFS[predFilter].map(def => predKOCardHTML(def, ps, predFilter, key)).join('')}</div>`;
+      list.innerHTML = bar
+        + `<div class="bracket-rounds-header" id="pred-round-headers"></div>
+           <div class="bracket-scroll"><div id="pred-bracket-wrap"><svg id="pred-bracket-svg"></svg></div></div>`;
+      renderPredBracket(ps, key);
     }
   }
   document.getElementById('pred-meta').textContent = '';
