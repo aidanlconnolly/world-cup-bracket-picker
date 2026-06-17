@@ -106,7 +106,13 @@ finals:{final, thirdPlace}}` — `picks` are the 1X2 group calls keyed off ESPN 
   for already-played games via `groupOutcome()`; tiebreak pts→GD→GF→prob prior since
   1X2 picks carry no score) and returns null until all 6 are decided. A CTA bar tracks
   `n/12` tables; `gotoFirstMissing()` scrolls to + flags the next undecided group.
-- **Knockouts** gate until all 12 tables are set. `predBracketState()` (=
+- **Knockouts** (`predFilter==='ko'`) gate until all 12 tables are set. The filter is
+  just two chips — **Group stage** / **Knockout bracket** — and the KO stage renders the
+  **same visual bracket tree as the Bracket tab** (R32→Final columns + SVG connectors),
+  not a round-by-round list. Both views share `paintBracketInto(ids, cardHTML, winnerOf)`
+  (the painter `renderBracket()` was refactored into); the predictor passes
+  `predMatchCardHTML(def, ps, key)` (tap a team → `setPredKO`, gold winner / greyed loser,
+  footer `+pts`/`✗0` badge) via `renderPredBracket()`. `predBracketState()` (=
   `predStateFrom(predictor)`) builds a real bracket `state` from the derived standings
   + `ko`/`finals`, and `withState(ps, fn)` temporarily swaps the global `state` so
   `resolveSlot`/`assignThirds`/`getThirdPlaces` seed the matchups from your predicted
