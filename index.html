@@ -779,10 +779,10 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 <nav id="nav">
   <div class="nav-title">🏆 2026 World Cup</div>
   <div class="tab-toggle">
-    <button id="tab-btn-bracket" class="active" onclick="setTab('bracket')">Group stage picks</button>
+    <button id="tab-btn-predictor" class="active" onclick="setTab('predictor')">🎯 Knockout bracket</button>
     <button id="tab-btn-explore" onclick="setTab('explore')">🌍 Global Brackets</button>
     <button id="tab-btn-live" onclick="setTab('live')">Matches <span id="live-nav-dot" class="live-nav-dot" style="display:none"></span></button>
-    <button id="tab-btn-predictor" onclick="setTab('predictor')">🎯 Knockout bracket</button>
+    <button id="tab-btn-bracket" onclick="setTab('bracket')">Group stage picks</button>
   </div>
   <div class="nav-links">
     <a href="#groups-section">Groups</a>
@@ -804,7 +804,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
   </div>
 </nav>
 
-<div id="view-bracket">
+<div id="view-bracket" style="display:none">
 
 <div id="viewing-banner" style="display:none">
   👀 Viewing <strong id="viewing-name"></strong> — read-only, changes won't be saved
@@ -868,7 +868,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 </section>
 </div><!-- /view-live -->
 
-<div id="view-predictor" style="display:none">
+<div id="view-predictor">
 <section id="predictor-section">
   <h2>🎯 Knockout bracket</h2>
   <div class="live-controls">
@@ -1489,8 +1489,7 @@ function pickWinner(matchId, team) {
   else if (matchId === 'third-place') state.finals.thirdPlace = result;
   else state.ko[matchId] = result;
   saveState();
-  renderBracket();
-  renderChampion();
+  renderBracketKeepingScroll(matchId);
 }
 
 function resetKO(matchId) {
@@ -1514,8 +1513,44 @@ function resetKO(matchId) {
   }
   if (dependents.has('final')) state.awards = null;
   saveState();
+  renderBracketKeepingScroll(null);   // undo: keep the user's place, don't auto-advance
+}
+
+// Re-render the bracket after a pick WITHOUT losing the user's place in the
+// horizontal scroll (a fresh render used to snap back to the Round of 32 on mobile).
+// When a pick completes a whole round, glide to the next round so the next set of
+// games is right there — only on mobile, where the columns scroll horizontally.
+const KO_NEXT_ROUND = { r32: 'r16', r16: 'qf', qf: 'sf', sf: 'final' };
+function koDefsForRound(round) {
+  return round === 'r32' ? R32_DEF : round === 'r16' ? R16_DEF
+       : round === 'qf' ? QF_DEF : round === 'sf' ? SF_DEF : [];
+}
+function isMobileView() { return window.innerWidth <= 768; }
+// Move the horizontal scroll to a target, clamped to the scrollable range. Uses a
+// plain scrollLeft assignment — reliable in every engine, whereas
+// `scrollTo({behavior:'smooth'})`/rAF animations silently no-op in some renderers.
+function setBracketScroll(sc, to) {
+  to = Math.max(0, Math.min(to, sc.scrollWidth - sc.clientWidth));
+  sc.scrollLeft = to;
+  requestAnimationFrame(() => { sc.scrollLeft = to; });   // re-assert after any reflow
+}
+function advanceOrHold(sc, justPickedId, prevLeft, roundDone) {
+  const round = justPickedId && (justPickedId.match(/^(r32|r16|qf|sf)/) || [])[0];
+  const next = round && KO_NEXT_ROUND[round];
+  if (next && isMobileView() && roundDone(round)) {
+    setBracketScroll(sc, COLS[next] - 12);                 // round complete → move to it
+  } else {
+    setBracketScroll(sc, prevLeft);                        // else hold position (no snap-back)
+  }
+}
+function renderBracketKeepingScroll(justPickedId) {
+  const sc = document.querySelector('#view-bracket .bracket-scroll');
+  const prevLeft = sc ? sc.scrollLeft : 0;
   renderBracket();
   renderChampion();
+  if (!sc) return;
+  sc.scrollLeft = prevLeft;                       // hold position through the re-render
+  advanceOrHold(sc, justPickedId, prevLeft, r => koDefsForRound(r).every(d => isMatchDone(d.id)));
 }
 
 // ─── SIMULATE ALL ────────────────────────────────────────────
@@ -2014,7 +2049,7 @@ const ROUND_NAMES = {
   '3rd-place-match': '3rd Place', 'final': 'Final',
 };
 
-let activeTab = 'bracket';
+let activeTab = 'predictor';
 let live = {
   matches: [], lastUpdated: null, filter: 'all',
   fullFetched: false, loading: false, error: null,
@@ -2592,7 +2627,7 @@ let predictor = lsGet('wcPredictor', { picks:{}, ko:{}, finals:{ final:null, thi
 if (!predictor.picks) predictor.picks = {};
 if (!predictor.ko) predictor.ko = {};
 if (!predictor.finals) predictor.finals = { final:null, thirdPlace:null };
-let predFilter = 'group';
+let predFilter = 'ko';   // Knockout bracket opens straight to the bracket tree
 
 function predStage(m) { return (m.round || '').startsWith('Group') ? 'group' : koRoundOf(m); }
 function predOutcome(m) { return m.home.winner ? m.home.name : m.away.winner ? m.away.name : 'DRAW'; }
@@ -2649,12 +2684,34 @@ function predGroupsComplete(picks = predictor.picks) {
   return Object.keys(GROUPS).every(g => deriveGroupStandings(g, picks));
 }
 
+// Real 3rd-place allocation read straight off ESPN's actual R32 fixtures: the opponent
+// of each seeded group winner IS that slot's real 3rd-placed team. Keeps the predictor
+// bracket matching the real draw (e.g. Germany–Paraguay, France–Sweden, Belgium–Senegal).
+function realThirdAssignFor(ps) {
+  const r32evs = (live.matches || []).filter(m => m.round === 'Round of 32' && !m.home.tbd && !m.away.tbd);
+  if (r32evs.length < 8) return null;
+  const assign = {};
+  for (const def of R32_DEF) {
+    if (!def.s2.startsWith('3rd:')) continue;
+    const seeded = withState(ps, () => resolveSlot(def.s1));
+    if (!seeded) continue;
+    const ev = r32evs.find(m => m.home.name === seeded || m.away.name === seeded);
+    if (!ev) continue;
+    assign[def.id] = ev.home.name === seeded ? ev.away.name : ev.home.name;
+  }
+  return Object.keys(assign).length === 8 ? assign : null;
+}
+
 // A bracket-shaped state derived from a predictor object, so the KO grammar runs.
 function predStateFrom(pd) {
   const picks = pd.picks || {}, koIn = pd.ko || {}, finIn = pd.finals || {};
   const ps = freshState(); ps.mode = 'pick'; ps.koFromReal = false;
+  // Once the real group stage is final, seed the knockouts from the REAL qualifiers +
+  // FIFA's real 3rd-place allocation (not the user's group picks), so the matchups mirror
+  // the actual draw. Before the groups finish, fall back to the predicted tables.
+  const useReal = realFieldReady();
   for (const g of Object.keys(GROUPS)) {
-    const st = deriveGroupStandings(g, picks);
+    const st = useReal ? realStandings(g) : deriveGroupStandings(g, picks);
     if (st) ps.groups[g] = { done:true, standings: st };
   }
   ps.ko = {};
@@ -2663,7 +2720,9 @@ function predStateFrom(pd) {
   }
   const fin = f => f && validTeam(f.winner) ? { winner:f.winner, loser: validTeam(f.loser) ? f.loser : null, predicted:true } : null;
   ps.finals = { final: fin(finIn.final), thirdPlace: fin(finIn.thirdPlace) };
-  ps.selectedThirds = withState(ps, () => getThirdPlaces().slice(0, 8).map(t => t.team));
+  const realTA = useReal ? realThirdAssignFor(ps) : null;
+  if (realTA) { ps.thirdAssign = realTA; ps.selectedThirds = Object.values(realTA); }
+  else ps.selectedThirds = withState(ps, () => getThirdPlaces().slice(0, 8).map(t => t.team));
   return ps;
 }
 function predBracketState() { return predStateFrom(predictor); }
@@ -2680,6 +2739,7 @@ function sanitizePredictorPicks(raw) {
 }
 
 function setPredPick(eventId, val) {
+  if (realFieldReady()) { showToast('Group stage is over — make your picks in the knockout bracket'); return; }
   const m = (live.matches || []).find(x => String(x.id) === String(eventId));
   if (!m || !predPickable(m)) { showToast('That game is locked'); return; }
   if (predictor.picks[eventId] === val) delete predictor.picks[eventId];
@@ -2715,7 +2775,20 @@ function setPredKO(matchId, team) {
   else predKOStore(matchId, { winner: team, loser: team === t1 ? t2 : t1, predicted: true });
   prunePredKO();
   lsSet('wcPredictor', predictor);
+  renderPredictorKeepingScroll(matchId);
+}
+
+// Same scroll-preserving + round-advancing behavior for the Knockout-bracket tab.
+// renderPredictor() rebuilds the whole list (recreating its .bracket-scroll), which
+// would otherwise reset the user to the Round of 32 after every tap.
+function renderPredictorKeepingScroll(justPickedId) {
+  const sel = () => document.querySelector('#view-predictor .bracket-scroll');
+  const prevLeft = sel() ? sel().scrollLeft : 0;
   renderPredictor();
+  const sc = sel();
+  if (!sc) return;
+  sc.scrollLeft = prevLeft;
+  advanceOrHold(sc, justPickedId, prevLeft, r => koDefsForRound(r).every(d => !!predKORec(d.id)));
 }
 
 // Drop any KO/finals pick whose matchup no longer holds (a changed earlier pick
@@ -2940,7 +3013,7 @@ function renderPredictor() {
   }
   const sc = scorePredictor(predictor);
   const n = predPickCount();
-  const banked = Object.keys(GROUPS).filter(g => deriveGroupStandings(g)).length;
+  const banked = realFieldReady() ? 12 : Object.keys(GROUPS).filter(g => deriveGroupStandings(g)).length;
   summary.innerHTML = `<div class="pred-summary">
     <div class="sb-total"><span class="sb-total-num">${sc.total}</span><span class="sb-total-lbl">pts</span></div>
     <div class="sb-phases">${PRED_STAGES.map(([k, l]) =>
@@ -2948,25 +3021,26 @@ function renderPredictor() {
     <span class="sb-note">${n} pick${n === 1 ? '' : 's'} made · ${sc.correct}/${sc.graded} group games right</span>
   </div>`;
   const koPicked = predKOPickCount();
-  filters.innerHTML = [['group', '⚽ Group stage', `${banked}/12`],
-      ['ko', '🏆 Knockout bracket', banked === 12 ? `${koPicked}/32` : '🔒']]
+  const realOver = realFieldReady();
+  filters.innerHTML = [['ko', '🏆 Knockout bracket', banked === 12 ? `${koPicked}/32` : '🔒'],
+      ['group', realOver ? '⚽ Group results' : '⚽ Group stage', `${banked}/12`]]
     .map(([k, l, c]) => `<button class="chip${predFilter === k ? ' active' : ''}" onclick="setPredFilter('${k}')">${l} (${c})</button>`).join('');
 
   if (predFilter === 'group') {
     const complete = banked === 12;
-    const next = complete
-      ? `<button class="btn btn-gold" onclick="setPredFilter('ko')">Predict the knockouts →</button>`
-      : `<button class="btn" onclick="gotoFirstMissing()">${12 - banked} group${12 - banked === 1 ? '' : 's'} left — jump to next</button>`;
-    const clear = n ? `<button class="btn" onclick="resetPredictorAll()">↺ Clear all picks (${n})</button>` : '';
-    list.innerHTML = `<div class="pred-cta-bar">
-        <span class="pcb-prog"><b>${banked}/12</b> group tables predicted${complete ? ' — knockouts unlocked 🔓' : ''}</span>
-        <span class="pcb-actions">${clear}${next}</span>
-      </div>
+    const bar = realOver
+      ? `<span class="pcb-prog">Group stage complete — these are the <b>real results</b> (read-only). Your knockout bracket is seeded from them.</span>
+         <span class="pcb-actions"><button class="btn btn-gold" onclick="setPredFilter('ko')">Go to knockout bracket →</button></span>`
+      : `<span class="pcb-prog"><b>${banked}/12</b> group tables predicted${complete ? ' — knockouts unlocked 🔓' : ''}</span>
+         <span class="pcb-actions">${n ? `<button class="btn" onclick="resetPredictorAll()">↺ Clear all picks (${n})</button>` : ''}${complete
+            ? `<button class="btn btn-gold" onclick="setPredFilter('ko')">Predict the knockouts →</button>`
+            : `<button class="btn" onclick="gotoFirstMissing()">${12 - banked} group${12 - banked === 1 ? '' : 's'} left — jump to next</button>`}</span>`;
+    list.innerHTML = `<div class="pred-cta-bar">${bar}</div>
       <div class="pred-groups-grid">${Object.keys(GROUPS).map(predGroupCardHTML).join('')}</div>`;
   } else {
     if (banked < 12) {
-      list.innerHTML = `<div class="pred-gate">Finish all 12 group tables to seed the knockouts from your predicted qualifiers.<br>
-        <button class="btn btn-small btn-gold" style="margin-top:10px" onclick="gotoFirstMissing()">Jump to what's left (${12 - banked})</button></div>`;
+      list.innerHTML = `<div class="pred-gate">Loading the real bracket… knockout matchups appear once all 12 group tables are final.<br>
+        <button class="btn btn-small btn-gold" style="margin-top:10px" onclick="refreshLive(true).then(renderPredictor)">⟳ Refresh</button></div>`;
     } else {
       const ps = predBracketState();
       const key = buildAnswerKey();
@@ -2976,7 +3050,7 @@ function renderPredictor() {
         ? ` <b>Complete!</b> Champion + 🥉 3rd place are in — publish so friends can rank you.`
         : ` Now pick the 🥉 3rd-place playoff (by the Final) to finish, then publish.`) : '';
       const bar = `<div class="pred-cta-bar">
-        <span class="pcb-prog">Knockouts seeded from your group tables — <b>tap a team</b> in each game to advance them.${champ ? ` Your champion: ${TEAMS[champ]?.flag || ''} <b>${escapeHTML(champ)}</b>.` : ' Nothing is picked for you.'}${doneNote}</span>
+        <span class="pcb-prog">Knockouts seeded from the real group results — <b>tap a team</b> in each game to advance them.${champ ? ` Your champion: ${TEAMS[champ]?.flag || ''} <b>${escapeHTML(champ)}</b>.` : ' Nothing is picked for you.'}${doneNote}</span>
         <span class="pcb-actions">${koPicked ? `<button class="btn" onclick="resetPredictorKO()">↺ Reset knockouts (${koPicked})</button>` : ''}${champ ? `<button class="btn btn-gold" onclick="openPublishModal('predictor')">🌍 Publish picks</button>` : ''}</span>
       </div>`;
       list.innerHTML = bar
@@ -4322,6 +4396,7 @@ state.mode = 'pick';
 renderAll();
 loadLiveCache();
 computeRatings();
+setTab('predictor');   // Knockout bracket is the home screen (renders it + pulls the live schedule)
 // once live results land, refresh the scoreboard/leaderboard against them
 refreshLive(false).then(() => { renderScoreboard(); renderSeedButton(); }); // prime scores + live dot
 </script>

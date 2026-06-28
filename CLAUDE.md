@@ -27,11 +27,13 @@ live at world-cup-bracket-picker.vercel.app). `gh` and `vercel` CLIs are at
 ## Architecture
 
 - `index.html` — the entire app; four views (`#view-bracket`, `#view-explore`,
-  `#view-live`, `#view-predictor`) toggled by `setTab()`. **Nav order / labels:
-  `#view-bracket` = "Group stage picks" (home), `#view-explore` = "🌍 Global Brackets"
-  (second), `#view-live` = "Matches", `#view-predictor` = "🎯 Knockout bracket".** Note
-  the internal ids/tab-keys are unchanged (`bracket`/`explore`/`live`/`predictor`) — only
-  the button text was renamed, so all `setTab('predictor')` etc. calls still work. The old
+  `#view-live`, `#view-predictor`) toggled by `setTab()`. **`#view-predictor` =
+  "🎯 Knockout bracket" is now the HOME tab** (first, default-active; init calls
+  `setTab('predictor')`, `activeTab`/`predFilter` default to `'predictor'`/`'ko'`, and the
+  inline view `display` defaults were swapped so it paints first with no flash). Nav order:
+  Knockout bracket · 🌍 Global Brackets · Matches · **Group stage picks (`#view-bracket`,
+  last)**. Internal ids/tab-keys are unchanged (`bracket`/`explore`/`live`/`predictor`) —
+  only button text/order changed, so all `setTab('predictor')` etc. calls still work. The old
   Tickets Analysis tab (`#view-tickets`) was removed from
   the UI; its Monte-Carlo/prices code (`computeTickets`, `runTicketsMC`, `gameRows`,
   `fold`, `buildTiers`, price feeds, etc.) is now **dead/unreachable** — left in place,
@@ -98,6 +100,16 @@ stay in sync with the third-slot positions, now `r32-3,4,5,6,11,12,13,14`. The R
 the official schedule after the reorder. `MATCH_ROW['third-place']` is `10` (was 14) so the
 🥉 3rd-place playoff card renders directly under the 🏆 Final in the last column.
 
+**Scroll-preserving re-render.** `pickWinner`/`resetKO` call `renderBracketKeepingScroll()`
+(not bare `renderBracket()`), and the predictor's `setPredKO` calls
+`renderPredictorKeepingScroll()`. Both capture the `.bracket-scroll` horizontal position,
+re-render, restore it (a fresh render used to snap mobile users back to the Round of 32 after
+every tap), then call the shared `advanceOrHold()`: on **mobile** (`isMobileView()`,
+≤768px), when the just-picked match *completes its whole round* it glides to the next
+round's column (`COLS[next]`). Scrolling uses a plain `scrollLeft` assignment
+(`setBracketScroll`) — `scrollTo({behavior:'smooth'})`/rAF animations silently no-op in some
+renderers, so don't reintroduce them.
+
 ### Scoring (two "tournaments", March-Madness style)
 
 `buildAnswerKey()` derives reality **purely from the ESPN live feed** (`live.matches`),
@@ -114,13 +126,24 @@ Results flagged `real:true` (pulled in by Sync Real) are **skipped** so syncing 
 inflates your own score. `renderScoreboard()` shows the live tally on the bracket view
 (hidden until any real result exists); the same function powers the leaderboard.
 
-### Match Predictor (`#view-predictor` tab)
+### Match Predictor / "Knockout bracket" (`#view-predictor` tab — the HOME tab)
 
-The other game: a full end-to-end prediction entered **game-by-game**, with the
-knockouts seeded from YOUR predicted qualifiers (not the real field). State lives in
+This is the headline game now (the group stage is over). State lives in
 `wcPredictor` = `{picks:{espnEventId: teamName|'DRAW'}, ko:{matchId:{winner,loser}},
-finals:{final, thirdPlace}}` — `picks` are the 1X2 group calls keyed off ESPN ids;
+finals:{final, thirdPlace}}` — `picks` are the legacy 1X2 group calls keyed off ESPN ids;
 `ko`/`finals` mirror the bracket's shape so the existing KO grammar can run.
+
+**Real seeding once the groups finish.** `predStateFrom(pd)` checks `realFieldReady()`:
+when all 12 real group tables are final it seeds the knockout bracket from the **real**
+qualifiers (`realStandings(g)`, not the user's group picks) AND FIFA's **real 3rd-place
+allocation** — `realThirdAssignFor(ps)` reads ESPN's actual R32 fixtures (each seeded group
+winner's opponent IS that slot's real 3rd) into `ps.thirdAssign`, so `assignThirds()` uses
+it instead of the greedy fallback. This is what makes the matchups mirror the real draw
+(Germany–Paraguay, France–Sweden, Belgium–Senegal, Mexico–Ecuador, …) rather than the
+greedy guess. Before the groups finish it falls back to `deriveGroupStandings` (the
+predicted tables). **Group picking is disabled once `realFieldReady()`** (`setPredPick`
+early-returns), the filter chips are `Knockout bracket` then `Group results` (read-only),
+and `predFilter` defaults to `'ko'` so the tab opens straight to the bracket tree.
 
 - **Group phase** (`predFilter==='group'`): 12 per-group cards, each the 6 real
   fixtures (`groupFixtures(g)`) + a live standings table to the right.
