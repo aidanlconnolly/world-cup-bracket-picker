@@ -157,10 +157,11 @@ and `predFilter` defaults to `'ko'` so the tab opens straight to the bracket tre
   not a round-by-round list. Both views share `paintBracketInto(ids, cardHTML, winnerOf)`
   (the painter `renderBracket()` was refactored into); the predictor passes
   `predMatchCardHTML(def, ps, key)` (tap a team → `setPredKO`, gold winner / greyed loser,
-  footer `+pts`/`✗0` badge) via `renderPredBracket()` — which, once both `finals.final`
-  and `finals.thirdPlace` are picked, also injects an absolutely-positioned
-  `.pred-publish-cta` ("Publish your bracket and compete against others!") into the gap
-  between the Final and 🥉 3rd-place cards in the last column. `predBracketState()` (=
+  footer `+pts`/`✗0` badge) via `renderPredBracket()` — which also injects an
+  absolutely-positioned `.pred-publish-cta` just ABOVE the Final card (top computed from
+  the measured CTA height so it tucks against the Final). Its Publish button is enabled
+  only once both `finals.final` and `finals.thirdPlace` have a winner; otherwise it's
+  `.disabled` with a "pick a winner in the Final and 3rd-place game" hint. `predBracketState()` (=
   `predStateFrom(predictor)`) builds a real bracket `state` from the derived standings
   + `ko`/`finals`, and `withState(ps, fn)` temporarily swaps the global `state` so
   `resolveSlot`/`assignThirds`/`getThirdPlaces` seed the matchups from your predicted

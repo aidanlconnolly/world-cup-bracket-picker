@@ -418,6 +418,9 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 .pred-publish-cta { position: absolute; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 11px 13px; background: rgba(255,215,0,0.09); border: 1px dashed var(--gold-glow); border-radius: 12px; box-sizing: border-box; }
 .pred-publish-cta .ppc-text { font-size: 12px; font-weight: 700; color: var(--gold); line-height: 1.35; }
 .pred-publish-cta .btn-gold { width: 100%; }
+.pred-publish-cta.disabled { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.14); }
+.pred-publish-cta.disabled .ppc-text { color: var(--muted); }
+.pred-publish-cta .btn-gold:disabled { opacity: .45; cursor: not-allowed; }
 .gb-archive { margin-top: 18px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px; }
 .gb-archive summary { cursor: pointer; font-size: 12.5px; color: var(--muted); list-style: none; padding: 4px 0; }
 .gb-archive summary::-webkit-details-marker { display: none; }
@@ -3005,21 +3008,23 @@ function predMatchCardHTML(def, ps, key) {
 function renderPredBracket(ps, key) {
   paintBracketInto({ headers:'pred-round-headers', wrap:'pred-bracket-wrap', svg:'pred-bracket-svg', prefix:'pred-' },
     def => predMatchCardHTML(def, ps, key), def => !!predKORec(def.id));
-  // Once the Final + 3rd-place are picked, drop a Publish CTA into the gap between
-  // those two cards in the last column — right where the eye lands after finishing.
+  // Publish CTA sits ABOVE the Final card; it's only clickable once a winner is
+  // picked for BOTH the Final and the 3rd-place game.
   const wrap = document.getElementById('pred-bracket-wrap');
   wrap.querySelectorAll('.pred-publish-cta').forEach(e => e.remove());
-  if (predictor.finals.final && predictor.finals.thirdPlace) {
-    const finBottom = Math.round(MATCH_ROW['final'] * ROW_H - CARD_H / 2) + CARD_H;
-    const cta = document.createElement('div');
-    cta.className = 'pred-publish-cta';
-    cta.style.left = COLS.final + 'px';
-    cta.style.top = (finBottom + 14) + 'px';
-    cta.style.width = CARD_W + 'px';
-    cta.innerHTML = `<div class="ppc-text">Publish your bracket and compete against others!</div>
-      <button class="btn btn-gold" onclick="openPublishModal('predictor')">🌍 Publish</button>`;
-    wrap.appendChild(cta);
-  }
+  const ready = !!(predictor.finals.final && predictor.finals.thirdPlace);
+  const cta = document.createElement('div');
+  cta.className = 'pred-publish-cta' + (ready ? '' : ' disabled');
+  cta.style.left = COLS.final + 'px';
+  cta.style.width = CARD_W + 'px';
+  cta.innerHTML = `<div class="ppc-text">${ready
+    ? 'Publish your bracket and compete against others!'
+    : 'Pick a winner in the Final and 🥉 3rd-place game to publish.'}</div>
+    <button class="btn btn-gold"${ready ? ` onclick="openPublishModal('predictor')"` : ' disabled'}>🌍 Publish</button>`;
+  cta.style.top = '0px';
+  wrap.appendChild(cta);
+  const finalTop = Math.round(MATCH_ROW['final'] * ROW_H - CARD_H / 2);
+  cta.style.top = Math.max(0, finalTop - cta.offsetHeight - 14) + 'px';   // tuck it just above the Final
 }
 
 function renderPredictor() {
