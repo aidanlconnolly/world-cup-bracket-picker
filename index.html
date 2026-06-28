@@ -3329,11 +3329,17 @@ function predictorLeaderboardHTML(entries) {
       (pd.finals.final ? 1 : 0) + (pd.finals.thirdPlace ? 1 : 0);
     return { b, sc: scorePredictor(pd), n };
   };
-  // New knockout brackets (published after the pivot) carry payload.knockout — those
-  // are the live board; everything published before that stays archived but retrievable.
-  const live = entries.filter(e => e.payload && e.payload.knockout).map(toRow)
+  // An entry is a live "knockout bracket" if it was flagged knockout:true OR simply
+  // contains knockout picks / a final (legacy brackets published just before the flag
+  // existed). Only pure group-stage predictions (no KO picks at all) stay archived.
+  const isKO = e => {
+    const p = e.payload || {};
+    return !!(p.knockout || (p.ko && Object.keys(p.ko).length) ||
+      (p.finals && (p.finals.final || p.finals.thirdPlace)));
+  };
+  const live = entries.filter(isKO).map(toRow)
     .sort((a, z) => z.sc.total - a.sc.total || (z.b.ts||0) - (a.b.ts||0));
-  const archived = entries.filter(e => !(e.payload && e.payload.knockout)).map(toRow)
+  const archived = entries.filter(e => !isKO(e)).map(toRow)
     .sort((a, z) => (z.b.ts||0) - (a.b.ts||0));
   const anyGraded = live.some(r => r.sc.graded > 0);
   const rowHTML = (row, i, ranked) => `

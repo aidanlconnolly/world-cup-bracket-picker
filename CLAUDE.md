@@ -301,11 +301,12 @@ sniffing for old entries). `bracketLeaderboardHTML()` ranks by the active `gbTab
 "YOU — tap to edit" badge and route to `switchToBracket()` instead of the read-only
 viewer. `predictorLeaderboardHTML()` ranks predictor entries by
 `scorePredictor()` (group +1 per real game + KO advancement). **Within the Knockout-bracket
-board it splits live vs archived by `payload.knockout`:** new publishes carry
-`knockout:true` inside the hash (`submitPublish`), so they rank on the live board; entries
-without it (everything published before the pivot) collapse into a retrievable
-`<details class="gb-archive">` ("Archived Match Predictor picks"). This archives the
-*old* picks while keeping the category itself the headline game. Scoring is untouched.
+board it splits live vs archived by whether an entry is actually a knockout bracket:** an
+entry is live if `payload.knockout` is set (new publishes carry `knockout:true` via
+`submitPublish`) OR it simply contains KO picks / a final — that content fallback keeps
+legacy knockout brackets published *just before* the flag existed on the live board.
+Only pure group-stage predictions (no KO picks at all) collapse into a retrievable
+`<details class="gb-archive">` ("Archived Match Predictor picks"). Scoring is untouched.
 
 - **Publish** (`openPublishModal()` → `submitPublish()`): an **inline modal**, not
   `prompt()` — `prompt()` is silently suppressed in many mobile/in-app browsers, which
