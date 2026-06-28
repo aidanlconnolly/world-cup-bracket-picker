@@ -157,7 +157,10 @@ and `predFilter` defaults to `'ko'` so the tab opens straight to the bracket tre
   not a round-by-round list. Both views share `paintBracketInto(ids, cardHTML, winnerOf)`
   (the painter `renderBracket()` was refactored into); the predictor passes
   `predMatchCardHTML(def, ps, key)` (tap a team → `setPredKO`, gold winner / greyed loser,
-  footer `+pts`/`✗0` badge) via `renderPredBracket()` — which also injects an
+  footer badge) via `renderPredBracket()`. The badge only shows red `✗ 0` once the pick is
+  truly decided wrong — `buildAnswerKey().eliminated` (losers of finished KO matches) gates
+  it, so a pick whose real game hasn't kicked off yet stays neutral gold `+pts` (never a
+  premature ✗). `renderPredBracket()` also injects an
   absolutely-positioned `.pred-publish-cta` just ABOVE the Final card (top computed from
   the measured CTA height so it tucks against the Final). Its Publish button is enabled
   only once both `finals.final` and `finals.thirdPlace` have a winner; otherwise it's

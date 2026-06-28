@@ -2547,7 +2547,7 @@ function koRoundOf(m) {
 function buildAnswerKey() {
   const key = { groups:{}, groupsDecided:0, thirds:null,
     reached:{ r16:new Set(), qf:new Set(), sf:new Set(), fin:new Set() },
-    champ:null, third:null, koPlayed:0 };
+    champ:null, third:null, koPlayed:0, eliminated:new Set() };
   const ms = live.matches || [];
   const groupPosts = ms.filter(m => (m.round||'').startsWith('Group') && m.state === 'post');
   const thirdsPool = [];
@@ -2571,6 +2571,8 @@ function buildAnswerKey() {
     const w = m.home.winner ? m.home.name : m.away.winner ? m.away.name : null;
     if (!w) continue;
     key.koPlayed++;
+    const loser = w === m.home.name ? m.away.name : m.home.name;
+    if (loser) key.eliminated.add(loser);
     const rd = koRoundOf(m);
     if (rd === 'r32') key.reached.r16.add(w);
     else if (rd === 'r16') key.reached.qf.add(w);
@@ -2977,13 +2979,22 @@ function predMatchCardHTML(def, ps, key) {
     : roundKey === 'qf' ? key.reached.sf : roundKey === 'sf' ? key.reached.fin : null;
   let badge;
   if (pick) {
-    const advanced = roundKey === 'fin' ? (key.champ && pick === key.champ)
-      : roundKey === 'third' ? (key.third && pick === key.third)
-      : realSet ? realSet.has(pick) : false;
-    const graded = roundKey === 'fin' ? !!key.champ : roundKey === 'third' ? !!key.third
-      : realSet ? (realSet.size > 0 || key.koPlayed > 0) : false;
-    badge = graded
-      ? (advanced ? `<span class="ko-pts win">+${pts}</span>` : `<span class="ko-pts loss">✗ 0</span>`)
+    // advanced = this pick already came true in reality; lost = this pick's team is
+    // actually OUT (lost the deciding real game). A pick is only graded "✗ 0" when it's
+    // truly decided wrong — games that haven't been played yet stay neutral (no ✗).
+    let advanced, lost;
+    if (roundKey === 'fin') {
+      advanced = !!key.champ && pick === key.champ;
+      lost = !advanced && key.eliminated.has(pick);
+    } else if (roundKey === 'third') {
+      advanced = !!key.third && pick === key.third;
+      lost = !!key.third && pick !== key.third;
+    } else {
+      advanced = realSet ? realSet.has(pick) : false;
+      lost = !advanced && key.eliminated.has(pick);
+    }
+    badge = advanced ? `<span class="ko-pts win">+${pts}</span>`
+      : lost ? `<span class="ko-pts loss">✗ 0</span>`
       : `<span class="ko-pts on">+${pts}</span>`;
   } else {
     badge = t1 && t2 ? `<span class="ko-pts tbd">+${pts}</span>` : '';
