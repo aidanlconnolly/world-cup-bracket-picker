@@ -157,7 +157,10 @@ and `predFilter` defaults to `'ko'` so the tab opens straight to the bracket tre
   not a round-by-round list. Both views share `paintBracketInto(ids, cardHTML, winnerOf)`
   (the painter `renderBracket()` was refactored into); the predictor passes
   `predMatchCardHTML(def, ps, key)` (tap a team → `setPredKO`, gold winner / greyed loser,
-  footer `+pts`/`✗0` badge) via `renderPredBracket()`. `predBracketState()` (=
+  footer `+pts`/`✗0` badge) via `renderPredBracket()` — which, once both `finals.final`
+  and `finals.thirdPlace` are picked, also injects an absolutely-positioned
+  `.pred-publish-cta` ("Publish your bracket and compete against others!") into the gap
+  between the Final and 🥉 3rd-place cards in the last column. `predBracketState()` (=
   `predStateFrom(predictor)`) builds a real bracket `state` from the derived standings
   + `ko`/`finals`, and `withState(ps, fn)` temporarily swaps the global `state` so
   `resolveSlot`/`assignThirds`/`getThirdPlaces` seed the matchups from your predicted
@@ -289,18 +292,19 @@ confirmed working; if "publish seems broken" it's almost always client-side.
 
 UI: split into **📝 My brackets** (editable — `myBracketsHTML()` cards open via
 `switchToBracket()`, with EDITING/PUBLISHED badges and delete) and a **read-only
-leaderboard** with a game switcher (`gbGame`: `brackets`/`predictor`).
-`splitEntries()` separates published entries by `kind` (falling back to payload
+leaderboard** with a game switcher (`gbGame`: `predictor`/`brackets`). **`predictor` is
+the default/home board, labelled "🎯 Knockout bracket"; `brackets` is "🏆 Group stage
+brackets".** `splitEntries()` separates published entries by `kind` (falling back to payload
 sniffing for old entries). `bracketLeaderboardHTML()` ranks by the active `gbTab`
 (`total`/`group`/`ko`); rows whose name matches one of your local brackets get a
 "YOU — tap to edit" badge and route to `switchToBracket()` instead of the read-only
 viewer. `predictorLeaderboardHTML()` ranks predictor entries by
-`scorePredictor()` (group +1 per real game + KO advancement). Until a real result
-exists, rows sort by recency and show 0. **The predictor board is now presented as
-*archived*** — the switcher chip reads "🗄 Match Predictor (archived)" and the board leads
-with a `.gb-archive-note` banner (those picks covered the now-finished group games). It's
-still fully retrievable, just no longer the headline game; `brackets` is the default
-`gbGame`. Scoring is untouched.
+`scorePredictor()` (group +1 per real game + KO advancement). **Within the Knockout-bracket
+board it splits live vs archived by `payload.knockout`:** new publishes carry
+`knockout:true` inside the hash (`submitPublish`), so they rank on the live board; entries
+without it (everything published before the pivot) collapse into a retrievable
+`<details class="gb-archive">` ("Archived Match Predictor picks"). This archives the
+*old* picks while keeping the category itself the headline game. Scoring is untouched.
 
 - **Publish** (`openPublishModal()` → `submitPublish()`): an **inline modal**, not
   `prompt()` — `prompt()` is silently suppressed in many mobile/in-app browsers, which

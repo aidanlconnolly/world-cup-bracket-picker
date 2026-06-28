@@ -415,8 +415,14 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 .gb-h { font-size: 16px; font-weight: 700; margin: 4px 0 12px; display: flex; align-items: center; gap: 10px; }
 .gb-h .tk-sub { font-weight: 400; }
 .gb-h::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.1); }
-.gb-archive-note { font-size: 12.5px; line-height: 1.5; color: var(--muted); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px 14px; margin: 0 0 14px; }
-.gb-archive-note b { color: var(--text); font-weight: 600; }
+.pred-publish-cta { position: absolute; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 11px 13px; background: rgba(255,215,0,0.09); border: 1px dashed var(--gold-glow); border-radius: 12px; box-sizing: border-box; }
+.pred-publish-cta .ppc-text { font-size: 12px; font-weight: 700; color: var(--gold); line-height: 1.35; }
+.pred-publish-cta .btn-gold { width: 100%; }
+.gb-archive { margin-top: 18px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px; }
+.gb-archive summary { cursor: pointer; font-size: 12.5px; color: var(--muted); list-style: none; padding: 4px 0; }
+.gb-archive summary::-webkit-details-marker { display: none; }
+.gb-archive summary:hover { color: var(--text); }
+.gb-archive[open] summary { margin-bottom: 4px; color: var(--text); }
 
 /* MATCH PREDICTOR */
 .pred-list { display: flex; flex-direction: column; gap: 8px; }
@@ -2999,6 +3005,21 @@ function predMatchCardHTML(def, ps, key) {
 function renderPredBracket(ps, key) {
   paintBracketInto({ headers:'pred-round-headers', wrap:'pred-bracket-wrap', svg:'pred-bracket-svg', prefix:'pred-' },
     def => predMatchCardHTML(def, ps, key), def => !!predKORec(def.id));
+  // Once the Final + 3rd-place are picked, drop a Publish CTA into the gap between
+  // those two cards in the last column — right where the eye lands after finishing.
+  const wrap = document.getElementById('pred-bracket-wrap');
+  wrap.querySelectorAll('.pred-publish-cta').forEach(e => e.remove());
+  if (predictor.finals.final && predictor.finals.thirdPlace) {
+    const finBottom = Math.round(MATCH_ROW['final'] * ROW_H - CARD_H / 2) + CARD_H;
+    const cta = document.createElement('div');
+    cta.className = 'pred-publish-cta';
+    cta.style.left = COLS.final + 'px';
+    cta.style.top = (finBottom + 14) + 'px';
+    cta.style.width = CARD_W + 'px';
+    cta.innerHTML = `<div class="ppc-text">Publish your bracket and compete against others!</div>
+      <button class="btn btn-gold" onclick="openPublishModal('predictor')">🌍 Publish</button>`;
+    wrap.appendChild(cta);
+  }
 }
 
 function renderPredictor() {
@@ -3077,7 +3098,7 @@ function openPublishModal(target = 'bracket', bracketId = null) {
     const n = predPickCount();
     if (!n) { showToast('Pick some matches first — every game is worth points'); return; }
     const champ = predictor.finals.final ? predictor.finals.final.winner : null;
-    sub.textContent = `${n} pick${n > 1 ? 's' : ''} so far${champ ? ` — ${TEAMS[champ]?.flag || ''} ${champ} to win it` : ''}. Name them so friends can find you on the Predictor leaderboard.`;
+    sub.textContent = `${n} pick${n > 1 ? 's' : ''} so far${champ ? ` — ${TEAMS[champ]?.flag || ''} ${champ} to win it` : ''}. Name them so friends can find you on the Knockout bracket leaderboard.`;
   } else {
     const entry = bracketId ? myBrackets().find(e => e.id === bracketId) : null;
     if (bracketId && !entry) { showToast('Bracket not found'); return; }
@@ -3106,7 +3127,7 @@ async function submitPublish() {
   try {
     if (publishTarget === 'predictor') {
       payload = { name, kind: 'predictor',
-        hash: encodeHash({ predictor: true, picks: predictor.picks, ko: predictor.ko, finals: predictor.finals }),
+        hash: encodeHash({ predictor: true, knockout: true, picks: predictor.picks, ko: predictor.ko, finals: predictor.finals }),
         champion: (predictor.finals.final && predictor.finals.final.winner) || '',
         runnerUp: (predictor.finals.final && predictor.finals.final.loser) || '', mode: 'pick' };
     } else {
@@ -3150,7 +3171,7 @@ async function submitPublish() {
 }
 
 // ─── GLOBAL BRACKETS (my editable brackets + read-only leaderboards) ──
-let gbGame = 'brackets';   // brackets | predictor
+let gbGame = 'predictor';   // predictor (Knockout bracket, home) | brackets (Group stage)
 let gbTab = 'total';       // total | group | ko (bracket leaderboard sort)
 function setGbTab(t) { gbTab = t; renderExplore(); }
 function setGbGame(g) { gbGame = g; renderExplore(); }
@@ -3295,23 +3316,24 @@ function bracketLeaderboardHTML(entries, key, hasReal) {
 
 function predictorLeaderboardHTML(entries) {
   document.getElementById('gb-tabs').innerHTML = '';
-  const archiveNote = `<div class="gb-archive-note">🗄 <b>Archived.</b> These match-by-match predictions were made before the knockouts — they cover the group-stage games, which are now finished. Kept here for the record; the live game is now the <b>Brackets</b> board.</div>`;
-  if (!entries.length) return archiveNote + `<p class="live-empty">No archived match-predictor picks.</p>`;
   const myName = (localStorage.getItem('wcPublishName') || '').toLowerCase();
-  const rows = entries.map(({ b, payload }) => {
+  const toRow = ({ b, payload }) => {
     const pd = { picks: sanitizePredictorPicks(payload && payload.picks),
       ko: (payload && payload.ko) || {}, finals: (payload && payload.finals) || {} };
     const n = Object.keys(pd.picks).length + Object.keys(pd.ko).length +
       (pd.finals.final ? 1 : 0) + (pd.finals.thirdPlace ? 1 : 0);
     return { b, sc: scorePredictor(pd), n };
-  }).sort((a, z) => z.sc.total - a.sc.total || (z.b.ts||0) - (a.b.ts||0));
-  const anyGraded = rows.some(r => r.sc.graded > 0);
-  return archiveNote + `<p class="lb-note" style="font-size:12px;color:var(--muted);margin:0 0 10px">${anyGraded
-      ? 'Scored game-by-game against finished matches · Group +1 · R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd +8 · Final +32'
-      : 'No graded games yet — scores appear as matches finish.'}</p>
-    <div class="lb-list">${rows.map((row, i) => `
-      <div class="lb-row${i<3 && anyGraded ? ' lb-top' : ''}">
-        <div class="lb-rank">${anyGraded ? '#'+(i+1) : '•'}</div>
+  };
+  // New knockout brackets (published after the pivot) carry payload.knockout — those
+  // are the live board; everything published before that stays archived but retrievable.
+  const live = entries.filter(e => e.payload && e.payload.knockout).map(toRow)
+    .sort((a, z) => z.sc.total - a.sc.total || (z.b.ts||0) - (a.b.ts||0));
+  const archived = entries.filter(e => !(e.payload && e.payload.knockout)).map(toRow)
+    .sort((a, z) => (z.b.ts||0) - (a.b.ts||0));
+  const anyGraded = live.some(r => r.sc.graded > 0);
+  const rowHTML = (row, i, ranked) => `
+      <div class="lb-row${ranked && i < 3 && anyGraded ? ' lb-top' : ''}">
+        <div class="lb-rank">${ranked && anyGraded ? '#' + (i + 1) : '•'}</div>
         <div class="lb-champ">🎯</div>
         <div class="lb-main">
           <div class="lb-name">${escapeHTML(row.b.name)}${(row.b.name||'').toLowerCase() === myName ? '<span class="lb-mine">YOU</span>' : ''}</div>
@@ -3321,7 +3343,18 @@ function predictorLeaderboardHTML(entries) {
           <div class="lb-score-num">${row.sc.total}</div>
           <div class="lb-score-lbl">pts</div>
         </div>
-      </div>`).join('')}</div>`;
+      </div>`;
+  const liveHTML = live.length
+    ? `<p class="lb-note" style="font-size:12px;color:var(--muted);margin:0 0 10px">${anyGraded
+        ? 'Knockout brackets scored by advancement vs reality · R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd +8 · Final +32'
+        : 'No knockout games finished yet — scores appear as the bracket plays out.'}</p>
+      <div class="lb-list">${live.map((r, i) => rowHTML(r, i, true)).join('')}</div>`
+    : `<p class="live-empty">No knockout brackets published yet — pick yours on the 🎯 Knockout bracket tab and hit Publish to be first on the board.</p>`;
+  const archivedHTML = archived.length
+    ? `<details class="gb-archive"><summary>🗄 Archived Match Predictor picks (${archived.length}) — made before the knockouts, kept for the record</summary>
+        <div class="lb-list" style="margin-top:10px">${archived.map(r => rowHTML(r, 0, false)).join('')}</div></details>`
+    : '';
+  return liveHTML + archivedHTML;
 }
 
 function renderExplore() {
@@ -3334,7 +3367,7 @@ function renderExplore() {
   // say exactly which bracket the header button will publish
   const pubBtn = document.getElementById('gb-publish-btn');
   if (pubBtn) pubBtn.textContent = `🌍 Publish ${state.name ? `"${state.name}"` : 'the bracket I\'m editing'}`;
-  document.getElementById('gb-games').innerHTML = [['brackets','🏆 Brackets'],['predictor','🗄 Match Predictor (archived)']]
+  document.getElementById('gb-games').innerHTML = [['predictor','🎯 Knockout bracket'],['brackets','🏆 Group stage brackets']]
     .map(([k,l]) => `<button class="chip${gbGame===k?' active':''}" onclick="setGbGame('${k}')">${l}</button>`).join('');
   if (explore.loading && !explore.list.length) { grid.innerHTML = '<p class="live-empty">Loading brackets…</p>'; meta.textContent = 'Loading…'; return; }
   meta.textContent = '';
