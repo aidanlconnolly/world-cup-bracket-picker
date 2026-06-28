@@ -291,22 +291,27 @@ one name can hold both a bracket and predictor picks. Capped at 100. POST
 removes without `kind` wipe the whole name) — no auth, friend-group toy. Prod KV is
 confirmed working; if "publish seems broken" it's almost always client-side.
 
-UI: split into **📝 My brackets** (editable — `myBracketsHTML()` cards open via
-`switchToBracket()`, with EDITING/PUBLISHED badges and delete) and a **read-only
-leaderboard** with a game switcher (`gbGame`: `predictor`/`brackets`). **`predictor` is
-the default/home board, labelled "🎯 Knockout bracket"; `brackets` is "🏆 Group stage
-brackets".** `splitEntries()` separates published entries by `kind` (falling back to payload
+UI: a **My brackets** section + a **read-only leaderboard**, both scoped to a game switcher
+(`gbGame`: `predictor`/`brackets`). **`predictor` is the default/home board, labelled
+"🎯 Knockout bracket"; `brackets` is "🏆 Group stage brackets".** `myBracketsHTML()` is
+board-scoped: on the Knockout board it shows `myKnockoutBracketHTML()` — a single editable
+card for *your* knockout bracket (the `predictor` object; tap → `setTab('predictor')`) — and
+on the Group stage board it shows the editable `myBrackets()` collection (cards open via
+`switchToBracket()`, EDITING/PUBLISHED badges, delete). The header "🌍 Publish" button
+(`gb-publish-btn`) likewise switches between publishing the knockout bracket vs the active
+group-stage bracket. `splitEntries()` separates published entries by `kind` (falling back to payload
 sniffing for old entries). `bracketLeaderboardHTML()` ranks by the active `gbTab`
 (`total`/`group`/`ko`); rows whose name matches one of your local brackets get a
 "YOU — tap to edit" badge and route to `switchToBracket()` instead of the read-only
 viewer. `predictorLeaderboardHTML()` ranks predictor entries by
-`scorePredictor()` (group +1 per real game + KO advancement). **Within the Knockout-bracket
-board it splits live vs archived by whether an entry is actually a knockout bracket:** an
-entry is live if `payload.knockout` is set (new publishes carry `knockout:true` via
-`submitPublish`) OR it simply contains KO picks / a final — that content fallback keeps
-legacy knockout brackets published *just before* the flag existed on the live board.
-Only pure group-stage predictions (no KO picks at all) collapse into a retrievable
-`<details class="gb-archive">` ("Archived Match Predictor picks"). Scoring is untouched.
+`scorePredictor()`. **The Knockout board only shows PURE knockout brackets** (`isLiveKO`:
+has KO picks/a final AND **zero** group-stage `picks`), so it ranks on knockout merit only.
+Any entry that carries group-stage picks is "from the group stage" and drops into a
+retrievable `<details class="gb-archive">` ("Archived — entries carrying group-stage
+picks"). To keep new publishes clean, `submitPublish` publishes a knockout bracket with
+`picks:{}` (knockouts + finals only) — so it lands on the live board, not the archive, and
+scores purely on advancement. (Legacy entries that bundled group calls stay archived until
+re-published.)
 
 - **Publish** (`openPublishModal()` → `submitPublish()`): an **inline modal**, not
   `prompt()` — `prompt()` is silently suppressed in many mobile/in-app browsers, which

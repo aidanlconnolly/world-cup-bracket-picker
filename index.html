@@ -3132,7 +3132,10 @@ async function submitPublish() {
   try {
     if (publishTarget === 'predictor') {
       payload = { name, kind: 'predictor',
-        hash: encodeHash({ predictor: true, knockout: true, picks: predictor.picks, ko: predictor.ko, finals: predictor.finals }),
+        // Knockout brackets are knockouts only — don't bundle the legacy group-stage
+        // calls, so they land on the live board (not the group-stage archive) and score
+        // purely on knockout advancement.
+        hash: encodeHash({ predictor: true, knockout: true, picks: {}, ko: predictor.ko, finals: predictor.finals }),
         champion: (predictor.finals.final && predictor.finals.final.winner) || '',
         runnerUp: (predictor.finals.final && predictor.finals.final.loser) || '', mode: 'pick' };
     } else {
@@ -3212,7 +3215,39 @@ function splitEntries() {
   return { brackets, predictors };
 }
 
+// "My brackets" is scoped to the active board: the Knockout bracket board shows your
+// (single) knockout bracket — the predictor — while the Group stage brackets board shows
+// your editable group-stage bracket collection.
+function myKnockoutBracketHTML(hasReal) {
+  const pd = predictor;
+  const koPicks = Object.keys(pd.ko || {}).length + (pd.finals.final ? 1 : 0) + (pd.finals.thirdPlace ? 1 : 0);
+  if (!koPicks) {
+    return `<div class="gb-h">🎯 My knockout bracket</div>
+      <div class="mybr-grid"><div class="mybr-card" onclick="setTab('predictor')">
+        <div class="mybr-name">🎯 Your knockout bracket</div>
+        <div class="mybr-sub">No picks yet — open the Knockout bracket tab and tap teams to advance them.</div>
+        <div class="mybr-actions"><button class="btn btn-small btn-gold" onclick="event.stopPropagation();setTab('predictor')">✏️ Start picking</button></div>
+      </div></div>`;
+  }
+  const champ = pd.finals.final ? pd.finals.final.winner : null;
+  const sc = scorePredictor(pd);
+  const myName = (localStorage.getItem('wcPublishName') || '').toLowerCase();
+  const published = !!myName && explore.list.some(e => e.kind === 'predictor' && (e.name||'').toLowerCase() === myName);
+  return `<div class="gb-h">🎯 My knockout bracket <span class="tk-sub">your picks — tap to keep editing on the Knockout bracket tab</span></div>
+    <div class="mybr-grid"><div class="mybr-card active" onclick="setTab('predictor')">
+      <div class="mybr-name">${TEAMS[champ]?.flag || '🎯'} ${champ ? escapeHTML(champ) + ' to win it' : 'Your knockout bracket'}
+        ${published ? '<span class="mybr-badge">PUBLISHED</span>' : ''}</div>
+      <div class="mybr-sub">${koPicks} knockout pick${koPicks === 1 ? '' : 's'}${champ ? '' : ' · pick your champion'}</div>
+      <div class="mybr-actions">
+        <button class="btn btn-small btn-gold" onclick="event.stopPropagation();setTab('predictor')">✏️ Open &amp; edit</button>
+        <button class="btn btn-small" onclick="event.stopPropagation();openPublishModal('predictor')">🌍 Publish</button>
+        <span class="mybr-pts">${hasReal ? sc.total + ' pts' : ''}</span>
+      </div>
+    </div></div>`;
+}
+
 function myBracketsHTML(key, hasReal) {
+  if (gbGame === 'predictor') return myKnockoutBracketHTML(hasReal);
   const list = myBrackets();
   if (!list.length && !bracketHasPicks()) return '';
   const publishedNames = new Set(explore.list.filter(e => e.kind !== 'predictor').map(e => (e.name||'').toLowerCase()));
@@ -3233,7 +3268,7 @@ function myBracketsHTML(key, hasReal) {
       </div>
     </div>`;
   };
-  return `<div class="gb-h">📝 My brackets <span class="tk-sub">yours to edit — tap one to keep picking · ➕ New Bracket up top starts another</span></div>
+  return `<div class="gb-h">📝 My group-stage brackets <span class="tk-sub">yours to edit — tap one to keep picking · ➕ New Bracket up top starts another</span></div>
     <div class="mybr-grid">${list.map(card).join('')}</div>`;
 }
 
@@ -3329,17 +3364,19 @@ function predictorLeaderboardHTML(entries) {
       (pd.finals.final ? 1 : 0) + (pd.finals.thirdPlace ? 1 : 0);
     return { b, sc: scorePredictor(pd), n };
   };
-  // An entry is a live "knockout bracket" if it was flagged knockout:true OR simply
-  // contains knockout picks / a final (legacy brackets published just before the flag
-  // existed). Only pure group-stage predictions (no KO picks at all) stay archived.
-  const isKO = e => {
+  // A live "knockout bracket" has knockout picks/a final AND carries NO group-stage
+  // picks. Anything that includes group-stage calls is "from the group stage" and drops
+  // into the archive, so the board ranks pure knockout brackets on knockout merit only.
+  const isLiveKO = e => {
     const p = e.payload || {};
-    return !!(p.knockout || (p.ko && Object.keys(p.ko).length) ||
+    const hasKO = !!(p.knockout || (p.ko && Object.keys(p.ko).length) ||
       (p.finals && (p.finals.final || p.finals.thirdPlace)));
+    const groupPicks = p.picks ? Object.keys(p.picks).length : 0;
+    return hasKO && groupPicks === 0;
   };
-  const live = entries.filter(isKO).map(toRow)
+  const live = entries.filter(isLiveKO).map(toRow)
     .sort((a, z) => z.sc.total - a.sc.total || (z.b.ts||0) - (a.b.ts||0));
-  const archived = entries.filter(e => !isKO(e)).map(toRow)
+  const archived = entries.filter(e => !isLiveKO(e)).map(toRow)
     .sort((a, z) => (z.b.ts||0) - (a.b.ts||0));
   const anyGraded = live.some(r => r.sc.graded > 0);
   const rowHTML = (row, i, ranked) => `
@@ -3362,7 +3399,7 @@ function predictorLeaderboardHTML(entries) {
       <div class="lb-list">${live.map((r, i) => rowHTML(r, i, true)).join('')}</div>`
     : `<p class="live-empty">No knockout brackets published yet — pick yours on the 🎯 Knockout bracket tab and hit Publish to be first on the board.</p>`;
   const archivedHTML = archived.length
-    ? `<details class="gb-archive"><summary>🗄 Archived Match Predictor picks (${archived.length}) — made before the knockouts, kept for the record</summary>
+    ? `<details class="gb-archive"><summary>🗄 Archived (${archived.length}) — entries carrying group-stage picks, kept for the record</summary>
         <div class="lb-list" style="margin-top:10px">${archived.map(r => rowHTML(r, 0, false)).join('')}</div></details>`
     : '';
   return liveHTML + archivedHTML;
@@ -3377,7 +3414,15 @@ function renderExplore() {
   const grid = document.getElementById('explore-grid');
   // say exactly which bracket the header button will publish
   const pubBtn = document.getElementById('gb-publish-btn');
-  if (pubBtn) pubBtn.textContent = `🌍 Publish ${state.name ? `"${state.name}"` : 'the bracket I\'m editing'}`;
+  if (pubBtn) {
+    if (gbGame === 'predictor') {
+      pubBtn.textContent = '🌍 Publish my knockout bracket';
+      pubBtn.onclick = () => openPublishModal('predictor');
+    } else {
+      pubBtn.textContent = `🌍 Publish ${state.name ? `"${state.name}"` : 'the bracket I\'m editing'}`;
+      pubBtn.onclick = () => openPublishModal('bracket');
+    }
+  }
   document.getElementById('gb-games').innerHTML = [['predictor','🎯 Knockout bracket'],['brackets','🏆 Group stage brackets']]
     .map(([k,l]) => `<button class="chip${gbGame===k?' active':''}" onclick="setGbGame('${k}')">${l}</button>`).join('');
   if (explore.loading && !explore.list.length) { grid.innerHTML = '<p class="live-empty">Loading brackets…</p>'; meta.textContent = 'Loading…'; return; }
