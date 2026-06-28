@@ -26,11 +26,18 @@ live at world-cup-bracket-picker.vercel.app). `gh` and `vercel` CLIs are at
 
 ## Architecture
 
-- `index.html` — the entire app; five views (`#view-bracket`, `#view-live`,
-  `#view-predictor`, `#view-explore`, `#view-tickets`) toggled by `setTab()`.
-  `lsGet`/`lsSet` are declared at the top of the script on purpose — several
-  modules (predictor, folds, watchlist) read their stores at evaluation time,
-  and a TDZ hit there kills the whole script
+- `index.html` — the entire app; four views (`#view-bracket`, `#view-explore`,
+  `#view-live`, `#view-predictor`) toggled by `setTab()`. **Nav order / labels:
+  `#view-bracket` = "Group stage picks" (home), `#view-explore` = "🌍 Global Brackets"
+  (second), `#view-live` = "Matches", `#view-predictor` = "🎯 Knockout bracket".** Note
+  the internal ids/tab-keys are unchanged (`bracket`/`explore`/`live`/`predictor`) — only
+  the button text was renamed, so all `setTab('predictor')` etc. calls still work. The old
+  Tickets Analysis tab (`#view-tickets`) was removed from
+  the UI; its Monte-Carlo/prices code (`computeTickets`, `runTicketsMC`, `gameRows`,
+  `fold`, `buildTiers`, price feeds, etc.) is now **dead/unreachable** — left in place,
+  not wired to any button or `setTab` branch. `lsGet`/`lsSet` are declared at the top of
+  the script on purpose — several modules (predictor, folds, watchlist) read their stores
+  at evaluation time, and a TDZ hit there kills the whole script
 - `server.py` — Flask app serving index.html + all `/api` routes. **Vercel deploys this
   Flask app via its Python/Flask preset and routes `/api/*` through it** (confirmed via
   prod tracebacks) — so server-side changes must land in `server.py`, not just `api/`
@@ -75,6 +82,21 @@ tournament independent of Phase 1. `assignThirds()` checks `state.thirdAssign` (
 FIFA allocation captured from ESPN's actual R32 fixtures by Sync Real) before falling
 back to eligibility-order assignment. Bracket cards are absolutely positioned via
 `MATCH_ROW` row indices; SVG connectors are drawn per render.
+
+**`R32_DEF` order is load-bearing.** The R16/QF/SF defs wire a plain binary tree
+(`r16-1 = W:r32-1 vs W:r32-2`, `qf-1 = W:r16-1 vs W:r16-2`, …), so the *roads* (who can
+meet whom, and when) come entirely from how the 16 R32 matchups are ordered top-to-bottom.
+They mirror the **official 2026 bracket layout exactly as ESPN/FIFA draw it** (top-to-bottom
+the R32 reads 2A2B, 1F2C, 1E3rd, 1I3rd, 1G3rd, 1D3rd, 1H2J, 2K2L, 1C2F, 2E2I, 1A3rd, 1L3rd,
+1B3rd, 1K3rd, 2D2G, 1J2H): top half `r32-1..8` → `sf-1`, bottom half `r32-9..16` → `sf-2`.
+Concretely `1J` (`r32-16`) and `1K` (`r32-14`) are both in the bottom half and meet earliest
+at `qf-4` — *not* the R16 (an earlier bug had them adjacent in `r16-8`); `1J` vs `2K` (the
+real field, since Colombia won Group K) only meet in the Final (opposite halves). `THIRD_SLOTS`
+keys and the `slotOrder` arrays in `assignThirds()` (and the dead MC `mcAssignThirds`) must
+stay in sync with the third-slot positions, now `r32-3,4,5,6,11,12,13,14`. The R16/QF/SF
+`venue`/`date` fields are pinned to bracket *position* (= official match number), re-mapped to
+the official schedule after the reorder. `MATCH_ROW['third-place']` is `10` (was 14) so the
+🥉 3rd-place playoff card renders directly under the 🏆 Final in the last column.
 
 ### Scoring (two "tournaments", March-Madness style)
 
@@ -165,7 +187,12 @@ Winner") render as TBD.
   recomputed in `computeRatings()` after every fetch; rendered as ▲/▼ deltas and used
   by all simulations.
 
-### Ticket analytics (Tickets Analysis tab)
+### Ticket analytics (REMOVED from UI — dead code)
+
+> The Tickets Analysis tab was removed. Everything below still describes the code, which
+> remains in `index.html` but is **unreachable** (no nav tab, no `setTab('tickets')`
+> branch). Kept for reference / possible revival; safe to delete wholesale if desired.
+
 
 Monte Carlo over the remaining tournament (5,000 sims, ~600 ms, synchronous in
 `runTicketsMC()`), independent of the user's bracket picks. Anchoring, in priority
@@ -246,7 +273,11 @@ sniffing for old entries). `bracketLeaderboardHTML()` ranks by the active `gbTab
 "YOU — tap to edit" badge and route to `switchToBracket()` instead of the read-only
 viewer. `predictorLeaderboardHTML()` ranks predictor entries by
 `scorePredictor()` (group +1 per real game + KO advancement). Until a real result
-exists, rows sort by recency and show 0.
+exists, rows sort by recency and show 0. **The predictor board is now presented as
+*archived*** — the switcher chip reads "🗄 Match Predictor (archived)" and the board leads
+with a `.gb-archive-note` banner (those picks covered the now-finished group games). It's
+still fully retrievable, just no longer the headline game; `brackets` is the default
+`gbGame`. Scoring is untouched.
 
 - **Publish** (`openPublishModal()` → `submitPublish()`): an **inline modal**, not
   `prompt()` — `prompt()` is silently suppressed in many mobile/in-app browsers, which

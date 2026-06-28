@@ -415,6 +415,8 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 .gb-h { font-size: 16px; font-weight: 700; margin: 4px 0 12px; display: flex; align-items: center; gap: 10px; }
 .gb-h .tk-sub { font-weight: 400; }
 .gb-h::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.1); }
+.gb-archive-note { font-size: 12.5px; line-height: 1.5; color: var(--muted); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px 14px; margin: 0 0 14px; }
+.gb-archive-note b { color: var(--text); font-weight: 600; }
 
 /* MATCH PREDICTOR */
 .pred-list { display: flex; flex-direction: column; gap: 8px; }
@@ -777,11 +779,10 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 <nav id="nav">
   <div class="nav-title">🏆 2026 World Cup</div>
   <div class="tab-toggle">
-    <button id="tab-btn-bracket" class="active" onclick="setTab('bracket')">Bracket</button>
-    <button id="tab-btn-live" onclick="setTab('live')">Matches <span id="live-nav-dot" class="live-nav-dot" style="display:none"></span></button>
-    <button id="tab-btn-predictor" onclick="setTab('predictor')">🎯 Predictor</button>
+    <button id="tab-btn-bracket" class="active" onclick="setTab('bracket')">Group stage picks</button>
     <button id="tab-btn-explore" onclick="setTab('explore')">🌍 Global Brackets</button>
-    <button id="tab-btn-tickets" onclick="setTab('tickets')">🎟 Tickets Analysis</button>
+    <button id="tab-btn-live" onclick="setTab('live')">Matches <span id="live-nav-dot" class="live-nav-dot" style="display:none"></span></button>
+    <button id="tab-btn-predictor" onclick="setTab('predictor')">🎯 Knockout bracket</button>
   </div>
   <div class="nav-links">
     <a href="#groups-section">Groups</a>
@@ -869,7 +870,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 
 <div id="view-predictor" style="display:none">
 <section id="predictor-section">
-  <h2>🎯 Match Predictor</h2>
+  <h2>🎯 Knockout bracket</h2>
   <div class="live-controls">
     <span style="font-size:13px;color:var(--muted)">Call every game before kickoff — Group +1 · R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd place +8 · Final +32. Picks lock at kickoff.</span>
     <span class="live-updated" id="pred-meta"></span>
@@ -911,19 +912,6 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
   </div>
 </div>
 
-<div id="view-tickets" style="display:none">
-<section id="tickets-section">
-  <h2>Tickets Analysis</h2>
-  <div class="live-controls">
-    <span style="font-size:13px;color:var(--muted)" id="mc-meta">Monte Carlo over the remaining tournament, anchored to real results + live odds</span>
-    <span class="live-updated" id="mc-updated"></span>
-    <button class="btn" onclick="priceFeedSetup()" title="Pull cheapest get-in prices (StubHub, via our server) — no account needed">💵 Cheapest tickets</button>
-    <button class="btn btn-gold" onclick="computeTickets(true)">⟳ Recompute</button>
-  </div>
-  <div id="tickets-body"><p class="live-empty">Open this tab to run simulations…</p></div>
-</section>
-</div><!-- /view-tickets -->
-
 <div id="toast"></div>
 
 <script>
@@ -942,7 +930,7 @@ const MATCH_ROW = {
   'r16-5':9,'r16-6':11,'r16-7':13,'r16-8':15,
   'qf-1':2,'qf-2':6,'qf-3':10,'qf-4':14,
   'sf-1':4,'sf-2':12,
-  'final':8,'third-place':14,
+  'final':8,'third-place':10,   // 3rd-place sits right under the Final so it's obvious to pick
 };
 
 // ─── TEAM DATA ────────────────────────────────────────────────
@@ -1015,33 +1003,37 @@ const GROUPS = {
 // Kickoff datetimes extracted from ESPN's fixture list (R32 mapped exactly via
 // bracket-slot placeholders; later rounds via venue, unique within each round).
 const R32_DEF = [
+  // Top-to-bottom order mirrors the official 2026 bracket layout (R32 matches 73–88)
+  // exactly as ESPN/FIFA draw it: adjacent pairs feed each R16, pairs-of-pairs feed each
+  // QF. Roads: top half r32-1..8 → sf-1, bottom half r32-9..16 → sf-2. Each row keeps its
+  // own true venue/date; only the visual position changed.
   { id:'r32-1',  s1:'2A',            s2:'2B',            venue:'SoFi Stadium, Inglewood CA', date:'2026-06-28T19:00Z' },
-  { id:'r32-2',  s1:'1C',            s2:'2F',            venue:'NRG Stadium, Houston', date:'2026-06-29T17:00Z' },
+  { id:'r32-2',  s1:'1F',            s2:'2C',            venue:'Estadio BBVA, Monterrey', date:'2026-06-30T01:00Z' },
   { id:'r32-3',  s1:'1E',            s2:'3rd:A/B/C/D/F', venue:'Gillette Stadium, Boston', date:'2026-06-29T20:30Z' },
-  { id:'r32-4',  s1:'1F',            s2:'2C',            venue:'Estadio BBVA, Monterrey', date:'2026-06-30T01:00Z' },
-  { id:'r32-5',  s1:'2E',            s2:'2I',            venue:'AT&T Stadium, Dallas', date:'2026-06-30T17:00Z' },
-  { id:'r32-6',  s1:'1I',            s2:'3rd:C/D/F/G/H', venue:'MetLife Stadium, New Jersey', date:'2026-06-30T21:00Z' },
-  { id:'r32-7',  s1:'1A',            s2:'3rd:C/E/F/H/I', venue:'Estadio Azteca, Mexico City', date:'2026-07-01T01:00Z' },
-  { id:'r32-8',  s1:'1L',            s2:'3rd:E/H/I/J/K', venue:'Mercedes-Benz Stadium, Atlanta', date:'2026-07-01T16:00Z' },
-  { id:'r32-9',  s1:'1G',            s2:'3rd:A/E/H/I/J', venue:'Lumen Field, Seattle', date:'2026-07-01T20:00Z' },
-  { id:'r32-10', s1:'1D',            s2:'3rd:B/E/F/I/J', venue:"Levi's Stadium, San Francisco", date:'2026-07-02T00:00Z' },
-  { id:'r32-11', s1:'1H',            s2:'2J',            venue:'SoFi Stadium, Inglewood CA', date:'2026-07-02T19:00Z' },
-  { id:'r32-12', s1:'2K',            s2:'2L',            venue:'BMO Field, Toronto', date:'2026-07-02T23:00Z' },
+  { id:'r32-4',  s1:'1I',            s2:'3rd:C/D/F/G/H', venue:'MetLife Stadium, New Jersey', date:'2026-06-30T21:00Z' },
+  { id:'r32-5',  s1:'1G',            s2:'3rd:A/E/H/I/J', venue:'Lumen Field, Seattle', date:'2026-07-01T20:00Z' },
+  { id:'r32-6',  s1:'1D',            s2:'3rd:B/E/F/I/J', venue:"Levi's Stadium, San Francisco", date:'2026-07-02T00:00Z' },
+  { id:'r32-7',  s1:'1H',            s2:'2J',            venue:'SoFi Stadium, Inglewood CA', date:'2026-07-02T19:00Z' },
+  { id:'r32-8',  s1:'2K',            s2:'2L',            venue:'BMO Field, Toronto', date:'2026-07-02T23:00Z' },
+  { id:'r32-9',  s1:'1C',            s2:'2F',            venue:'NRG Stadium, Houston', date:'2026-06-29T17:00Z' },
+  { id:'r32-10', s1:'2E',            s2:'2I',            venue:'AT&T Stadium, Dallas', date:'2026-06-30T17:00Z' },
+  { id:'r32-11', s1:'1A',            s2:'3rd:C/E/F/H/I', venue:'Estadio Azteca, Mexico City', date:'2026-07-01T01:00Z' },
+  { id:'r32-12', s1:'1L',            s2:'3rd:E/H/I/J/K', venue:'Mercedes-Benz Stadium, Atlanta', date:'2026-07-01T16:00Z' },
   { id:'r32-13', s1:'1B',            s2:'3rd:E/F/G/I/J', venue:'BC Place, Vancouver', date:'2026-07-03T03:00Z' },
-  { id:'r32-14', s1:'2D',            s2:'2G',            venue:'AT&T Stadium, Dallas', date:'2026-07-03T18:00Z' },
-  { id:'r32-15', s1:'1J',            s2:'2H',            venue:'Hard Rock Stadium, Miami', date:'2026-07-03T22:00Z' },
-  { id:'r32-16', s1:'1K',            s2:'3rd:D/E/I/J/L', venue:'Arrowhead Stadium, Kansas City', date:'2026-07-04T01:30Z' },
+  { id:'r32-14', s1:'1K',            s2:'3rd:D/E/I/J/L', venue:'Arrowhead Stadium, Kansas City', date:'2026-07-04T01:30Z' },
+  { id:'r32-15', s1:'2D',            s2:'2G',            venue:'AT&T Stadium, Dallas', date:'2026-07-03T18:00Z' },
+  { id:'r32-16', s1:'1J',            s2:'2H',            venue:'Hard Rock Stadium, Miami', date:'2026-07-03T22:00Z' },
 ];
 
 const R16_DEF = [
   { id:'r16-1', s1:'W:r32-1', s2:'W:r32-2',  venue:'NRG Stadium, Houston', date:'2026-07-04T17:00Z' },
   { id:'r16-2', s1:'W:r32-3', s2:'W:r32-4',  venue:'Lincoln Financial Field, Philadelphia', date:'2026-07-04T21:00Z' },
-  { id:'r16-3', s1:'W:r32-5', s2:'W:r32-6',  venue:'MetLife Stadium, New Jersey', date:'2026-07-05T20:00Z' },
-  { id:'r16-4', s1:'W:r32-7', s2:'W:r32-8',  venue:'Estadio Azteca, Mexico City', date:'2026-07-06T00:00Z' },
-  { id:'r16-5', s1:'W:r32-9', s2:'W:r32-10', venue:'AT&T Stadium, Dallas', date:'2026-07-06T19:00Z' },
-  { id:'r16-6', s1:'W:r32-11',s2:'W:r32-12', venue:'Lumen Field, Seattle', date:'2026-07-07T00:00Z' },
-  { id:'r16-7', s1:'W:r32-13',s2:'W:r32-14', venue:'Mercedes-Benz Stadium, Atlanta', date:'2026-07-07T16:00Z' },
-  { id:'r16-8', s1:'W:r32-15',s2:'W:r32-16', venue:'BC Place, Vancouver', date:'2026-07-07T20:00Z' },
+  { id:'r16-3', s1:'W:r32-5', s2:'W:r32-6',  venue:'Lumen Field, Seattle', date:'2026-07-07T00:00Z' },
+  { id:'r16-4', s1:'W:r32-7', s2:'W:r32-8',  venue:'AT&T Stadium, Dallas', date:'2026-07-06T19:00Z' },
+  { id:'r16-5', s1:'W:r32-9', s2:'W:r32-10', venue:'MetLife Stadium, New Jersey', date:'2026-07-05T20:00Z' },
+  { id:'r16-6', s1:'W:r32-11',s2:'W:r32-12', venue:'Estadio Azteca, Mexico City', date:'2026-07-06T00:00Z' },
+  { id:'r16-7', s1:'W:r32-13',s2:'W:r32-14', venue:'BC Place, Vancouver', date:'2026-07-07T20:00Z' },
+  { id:'r16-8', s1:'W:r32-15',s2:'W:r32-16', venue:'Mercedes-Benz Stadium, Atlanta', date:'2026-07-07T16:00Z' },
 ];
 
 const QF_DEF = [
@@ -1063,13 +1055,13 @@ const ALL_KO = [...R32_DEF, ...R16_DEF, ...QF_DEF, ...SF_DEF];
 
 const THIRD_SLOTS = {
   'r32-3':  ['A','B','C','D','F'],
-  'r32-6':  ['C','D','F','G','H'],
-  'r32-7':  ['C','E','F','H','I'],
-  'r32-8':  ['E','H','I','J','K'],
-  'r32-9':  ['A','E','H','I','J'],
-  'r32-10': ['B','E','F','I','J'],
+  'r32-4':  ['C','D','F','G','H'],
+  'r32-5':  ['A','E','H','I','J'],
+  'r32-6':  ['B','E','F','I','J'],
+  'r32-11': ['C','E','F','H','I'],
+  'r32-12': ['E','H','I','J','K'],
   'r32-13': ['E','F','G','I','J'],
-  'r32-16': ['D','E','I','J','L'],
+  'r32-14': ['D','E','I','J','L'],
 };
 
 // localStorage helpers — defined up top because several modules read their
@@ -1288,7 +1280,7 @@ function assignThirds() {
 
   const assignment = {};
   const used = new Set();
-  const slotOrder = ['r32-3','r32-6','r32-7','r32-8','r32-9','r32-10','r32-13','r32-16'];
+  const slotOrder = ['r32-3','r32-4','r32-5','r32-6','r32-11','r32-12','r32-13','r32-14'];
   for (const slot of slotOrder) {
     const eligible = THIRD_SLOTS[slot];
     for (const t of advancing) {
@@ -1936,12 +1928,16 @@ function renderChampion() {
 
   sec.style.display = 'block';
   const flag = TEAMS[champion]?.flag || '🏆';
+  const thirdDone = !!state.finals.thirdPlace;
+  const nudge = thirdDone
+    ? 'Champion ✓ and 🥉 3rd-place ✓ — your bracket\'s complete. Publish it so the group can see &amp; rank it.'
+    : 'Champion ✓ — now pick the 🥉 3rd-place playoff (right by the Final), then publish for the group to see &amp; rank.';
   document.getElementById('champion-card').innerHTML = `
     <span class="champion-flag">${flag}</span>
     <div class="champion-name">${champion}</div>
     <div class="champion-subtitle">2026 FIFA World Cup Champions</div>
     ${viewing ? '' : `<button class="btn btn-gold champion-publish" onclick="openPublishModal()">🌍 Publish this bracket</button>
-    <div class="champion-publish-sub">your call is in — put it on Global Brackets for the group to see &amp; rank</div>`}
+    <div class="champion-publish-sub">${nudge}</div>`}
   `;
 
   let awards = '';
@@ -2027,7 +2023,7 @@ let live = {
 
 function setTab(t) {
   activeTab = t;
-  for (const k of ['bracket', 'live', 'predictor', 'explore', 'tickets']) {
+  for (const k of ['bracket', 'live', 'predictor', 'explore']) {
     document.getElementById('view-' + k).style.display = t === k ? '' : 'none';
     document.getElementById('tab-btn-' + k).classList.toggle('active', t === k);
   }
@@ -2045,7 +2041,6 @@ function setTab(t) {
     if (!live.fullFetched) refreshLive(true).then(renderPredictor);
   }
   if (t === 'explore' && !explore.fetched) refreshExplore();
-  if (t === 'tickets' && !mc.runs) computeTickets();
 }
 
 function normalizeEvent(e) {
@@ -2976,9 +2971,13 @@ function renderPredictor() {
       const ps = predBracketState();
       const key = buildAnswerKey();
       const champ = predictor.finals.final ? predictor.finals.final.winner : null;
+      const thirdDone = !!predictor.finals.thirdPlace;
+      const doneNote = champ ? (thirdDone
+        ? ` <b>Complete!</b> Champion + 🥉 3rd place are in — publish so friends can rank you.`
+        : ` Now pick the 🥉 3rd-place playoff (by the Final) to finish, then publish.`) : '';
       const bar = `<div class="pred-cta-bar">
-        <span class="pcb-prog">Knockouts seeded from your group tables — <b>tap a team</b> in each game to advance them.${champ ? ` Your champion: ${TEAMS[champ]?.flag || ''} <b>${escapeHTML(champ)}</b>.` : ' Nothing is picked for you.'}</span>
-        <span class="pcb-actions">${koPicked ? `<button class="btn" onclick="resetPredictorKO()">↺ Reset knockouts (${koPicked})</button>` : ''}</span>
+        <span class="pcb-prog">Knockouts seeded from your group tables — <b>tap a team</b> in each game to advance them.${champ ? ` Your champion: ${TEAMS[champ]?.flag || ''} <b>${escapeHTML(champ)}</b>.` : ' Nothing is picked for you.'}${doneNote}</span>
+        <span class="pcb-actions">${koPicked ? `<button class="btn" onclick="resetPredictorKO()">↺ Reset knockouts (${koPicked})</button>` : ''}${champ ? `<button class="btn btn-gold" onclick="openPublishModal('predictor')">🌍 Publish picks</button>` : ''}</span>
       </div>`;
       list.innerHTML = bar
         + `<div class="bracket-rounds-header" id="pred-round-headers"></div>
@@ -3222,7 +3221,8 @@ function bracketLeaderboardHTML(entries, key, hasReal) {
 
 function predictorLeaderboardHTML(entries) {
   document.getElementById('gb-tabs').innerHTML = '';
-  if (!entries.length) return `<p class="live-empty">No match-predictor picks published yet — make yours on the 🎯 Predictor tab.</p>`;
+  const archiveNote = `<div class="gb-archive-note">🗄 <b>Archived.</b> These match-by-match predictions were made before the knockouts — they cover the group-stage games, which are now finished. Kept here for the record; the live game is now the <b>Brackets</b> board.</div>`;
+  if (!entries.length) return archiveNote + `<p class="live-empty">No archived match-predictor picks.</p>`;
   const myName = (localStorage.getItem('wcPublishName') || '').toLowerCase();
   const rows = entries.map(({ b, payload }) => {
     const pd = { picks: sanitizePredictorPicks(payload && payload.picks),
@@ -3232,7 +3232,7 @@ function predictorLeaderboardHTML(entries) {
     return { b, sc: scorePredictor(pd), n };
   }).sort((a, z) => z.sc.total - a.sc.total || (z.b.ts||0) - (a.b.ts||0));
   const anyGraded = rows.some(r => r.sc.graded > 0);
-  return `<p class="lb-note" style="font-size:12px;color:var(--muted);margin:0 0 10px">${anyGraded
+  return archiveNote + `<p class="lb-note" style="font-size:12px;color:var(--muted);margin:0 0 10px">${anyGraded
       ? 'Scored game-by-game against finished matches · Group +1 · R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd +8 · Final +32'
       : 'No graded games yet — scores appear as matches finish.'}</p>
     <div class="lb-list">${rows.map((row, i) => `
@@ -3260,7 +3260,7 @@ function renderExplore() {
   // say exactly which bracket the header button will publish
   const pubBtn = document.getElementById('gb-publish-btn');
   if (pubBtn) pubBtn.textContent = `🌍 Publish ${state.name ? `"${state.name}"` : 'the bracket I\'m editing'}`;
-  document.getElementById('gb-games').innerHTML = [['brackets','🏆 Brackets'],['predictor','🎯 Match Predictor']]
+  document.getElementById('gb-games').innerHTML = [['brackets','🏆 Brackets'],['predictor','🗄 Match Predictor (archived)']]
     .map(([k,l]) => `<button class="chip${gbGame===k?' active':''}" onclick="setGbGame('${k}')">${l}</button>`).join('');
   if (explore.loading && !explore.list.length) { grid.innerHTML = '<p class="live-empty">Loading brackets…</p>'; meta.textContent = 'Loading…'; return; }
   meta.textContent = '';
@@ -3453,7 +3453,7 @@ function mcAssignThirds(thirds) {
   if (state.thirdAssign && Object.keys(state.thirdAssign).length === 8) return state.thirdAssign;
   const advancing = thirds.slice(0, 8);
   const assignment = {}, used = new Set();
-  const slotOrder = ['r32-3','r32-6','r32-7','r32-8','r32-9','r32-10','r32-13','r32-16'];
+  const slotOrder = ['r32-3','r32-4','r32-5','r32-6','r32-11','r32-12','r32-13','r32-14'];
   for (const slot of slotOrder) {
     const eligible = THIRD_SLOTS[slot];
     let pick = advancing.find(t => !used.has(t.team) && eligible.includes(t.group))
