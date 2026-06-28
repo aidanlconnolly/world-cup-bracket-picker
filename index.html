@@ -421,6 +421,10 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 .pred-publish-cta.disabled { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.14); }
 .pred-publish-cta.disabled .ppc-text { color: var(--muted); }
 .pred-publish-cta .btn-gold:disabled { opacity: .45; cursor: not-allowed; }
+.lb-clickable { cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+.lb-clickable:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,215,0,0.35); }
+.pred-view-banner { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: rgba(255,215,0,0.10); border: 1px solid var(--gold-glow); border-radius: 12px; padding: 12px 16px; font-size: 14px; color: var(--text); }
+.pred-view-banner strong { color: var(--gold); }
 .gb-archive { margin-top: 18px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px; }
 .gb-archive summary { cursor: pointer; font-size: 12.5px; color: var(--muted); list-style: none; padding: 4px 0; }
 .gb-archive summary::-webkit-details-marker { display: none; }
@@ -883,7 +887,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
   <div class="live-controls">
     <span style="font-size:13px;color:var(--muted)">Call every game before kickoff — Group +1 · R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd place +8 · Final +32. Picks lock at kickoff.</span>
     <span class="live-updated" id="pred-meta"></span>
-    <button class="btn btn-gold" onclick="openPublishModal('predictor')">🌍 Publish picks</button>
+    <button class="btn btn-gold" id="pred-publish-btn" onclick="openPublishModal('predictor')">🌍 Publish picks</button>
     <button class="btn" onclick="refreshLive(true).then(renderPredictor)">⟳ Refresh</button>
   </div>
   <div id="pred-summary"></div>
@@ -2066,6 +2070,9 @@ let live = {
 };
 
 function setTab(t) {
+  // Navigating anywhere (other than opening the viewer itself) exits knockout-view mode
+  // and restores your own bracket.
+  if (viewingPred && !_openingPredView) { if (predBackup) predictor = predBackup; viewingPred = null; predBackup = null; }
   activeTab = t;
   for (const k of ['bracket', 'live', 'predictor', 'explore']) {
     document.getElementById('view-' + k).style.display = t === k ? '' : 'none';
@@ -2750,6 +2757,7 @@ function sanitizePredictorPicks(raw) {
 }
 
 function setPredPick(eventId, val) {
+  if (viewingPred) { showToast(`Read-only — this is ${viewingPred.name}'s bracket`); return; }
   if (realFieldReady()) { showToast('Group stage is over — make your picks in the knockout bracket'); return; }
   const m = (live.matches || []).find(x => String(x.id) === String(eventId));
   if (!m || !predPickable(m)) { showToast('That game is locked'); return; }
@@ -2778,6 +2786,7 @@ function predKOStore(matchId, rec) {
 }
 
 function setPredKO(matchId, team) {
+  if (viewingPred) { showToast(`Read-only — this is ${viewingPred.name}'s bracket`); return; }
   const def = predKODefOf(matchId); if (!def) return;
   const [t1, t2] = predKOTeams(def, predBracketState());
   if (team !== t1 && team !== t2) { showToast('That matchup isn\'t set yet'); return; }
@@ -2852,6 +2861,7 @@ function predKOPickCount() {
 }
 // Wipe every knockout winner so the bracket is back to seeded-but-unpicked.
 function resetPredictorKO() {
+  if (viewingPred) return;
   predictor.ko = {};
   predictor.finals = { final: null, thirdPlace: null };
   lsSet('wcPredictor', predictor);
@@ -2861,6 +2871,7 @@ function resetPredictorKO() {
 
 // Wipe every predictor pick (group calls + knockouts) back to a blank slate.
 function resetPredictorAll() {
+  if (viewingPred) return;
   if (predPickCount() && !confirm('Clear all your predictor picks (group games and knockouts)? This can\'t be undone.')) return;
   predictor.picks = {};
   predictor.ko = {};
@@ -2965,7 +2976,7 @@ function predMatchCardHTML(def, ps, key) {
     const isWinner = !!pick && team === pick;
     const isLoser  = !!pick && !!team && team !== pick;
     const cls = isWinner ? 'winner' : isLoser ? 'loser' : '';
-    const clickable = !!team && !!t1 && !!t2;
+    const clickable = !!team && !!t1 && !!t2 && !viewingPred;
     const pickAttr = clickable ? `onclick="setPredKO('${def.id}','${q(team)}')"` : '';
     return `<div class="match-team ${cls}${clickable ? ' pick-hover' : ''}" ${pickAttr}>
       <span class="flag">${team ? (TEAMS[team]?.flag || '') : ''}</span>
@@ -3023,6 +3034,7 @@ function renderPredBracket(ps, key) {
   // picked for BOTH the Final and the 3rd-place game.
   const wrap = document.getElementById('pred-bracket-wrap');
   wrap.querySelectorAll('.pred-publish-cta').forEach(e => e.remove());
+  if (viewingPred) return;   // read-only view of someone else's bracket — no publish CTA
   const ready = !!(predictor.finals.final && predictor.finals.thirdPlace);
   const cta = document.createElement('div');
   cta.className = 'pred-publish-cta' + (ready ? '' : ' disabled');
@@ -3050,18 +3062,28 @@ function renderPredictor() {
   }
   const sc = scorePredictor(predictor);
   const n = predPickCount();
-  const banked = realFieldReady() ? 12 : Object.keys(GROUPS).filter(g => deriveGroupStandings(g)).length;
-  summary.innerHTML = `<div class="pred-summary">
-    <div class="sb-total"><span class="sb-total-num">${sc.total}</span><span class="sb-total-lbl">pts</span></div>
-    <div class="sb-phases">${PRED_STAGES.map(([k, l]) =>
-      `<span class="sb-pill">${l} <b>${sc.byStage[k]}</b></span>`).join('')}</div>
-    <span class="sb-note">${n} pick${n === 1 ? '' : 's'} made · ${sc.correct}/${sc.graded} group games right</span>
-  </div>`;
   const koPicked = predKOPickCount();
+  const banked = realFieldReady() ? 12 : Object.keys(GROUPS).filter(g => deriveGroupStandings(g)).length;
   const realOver = realFieldReady();
-  filters.innerHTML = [['ko', '🏆 Knockout bracket', banked === 12 ? `${koPicked}/32` : '🔒'],
-      ['group', realOver ? '⚽ Group results' : '⚽ Group stage', `${banked}/12`]]
-    .map(([k, l, c]) => `<button class="chip${predFilter === k ? ' active' : ''}" onclick="setPredFilter('${k}')">${l} (${c})</button>`).join('');
+  const pubBtn = document.getElementById('pred-publish-btn');
+  if (pubBtn) pubBtn.style.display = viewingPred ? 'none' : '';
+  if (viewingPred) {
+    summary.innerHTML = `<div class="pred-view-banner">👀 Viewing <strong>${escapeHTML(viewingPred.name)}</strong>'s knockout bracket — read-only
+      <button class="btn btn-gold" onclick="exitViewPredictor()">← Back to the leaderboard</button></div>`;
+    filters.innerHTML = '';
+  } else {
+    // The knockout bracket is scored on KNOCKOUTS ONLY — legacy group-stage picks don't
+    // count here (they'd otherwise inflate the total vs the pure knockout brackets).
+    summary.innerHTML = `<div class="pred-summary">
+      <div class="sb-total"><span class="sb-total-num">${sc.ko}</span><span class="sb-total-lbl">pts</span></div>
+      <div class="sb-phases">${PRED_STAGES.filter(([k]) => k !== 'group').map(([k, l]) =>
+        `<span class="sb-pill">${l} <b>${sc.byStage[k]}</b></span>`).join('')}</div>
+      <span class="sb-note">${koPicked} knockout pick${koPicked === 1 ? '' : 's'} · scored on advancement vs reality</span>
+    </div>`;
+    filters.innerHTML = [['ko', '🏆 Knockout bracket', banked === 12 ? `${koPicked}/32` : '🔒'],
+        ['group', realOver ? '⚽ Group results' : '⚽ Group stage', `${banked}/12`]]
+      .map(([k, l, c]) => `<button class="chip${predFilter === k ? ' active' : ''}" onclick="setPredFilter('${k}')">${l} (${c})</button>`).join('');
+  }
 
   if (predFilter === 'group') {
     const complete = banked === 12;
@@ -3086,7 +3108,9 @@ function renderPredictor() {
       const doneNote = champ ? (thirdDone
         ? ` <b>Complete!</b> Champion + 🥉 3rd place are in — publish so friends can rank you.`
         : ` Now pick the 🥉 3rd-place playoff (by the Final) to finish, then publish.`) : '';
-      const bar = `<div class="pred-cta-bar">
+      const bar = viewingPred
+        ? `<div class="pred-cta-bar"><span class="pcb-prog">👀 <b>${escapeHTML(viewingPred.name)}</b>'s knockout bracket — read-only.${champ ? ` Champion: ${TEAMS[champ]?.flag || ''} <b>${escapeHTML(champ)}</b>.` : ''}</span></div>`
+        : `<div class="pred-cta-bar">
         <span class="pcb-prog">Knockouts seeded from the real group results — <b>tap a team</b> in each game to advance them.${champ ? ` Your champion: ${TEAMS[champ]?.flag || ''} <b>${escapeHTML(champ)}</b>.` : ' Nothing is picked for you.'}${doneNote}</span>
         <span class="pcb-actions">${koPicked ? `<button class="btn" onclick="resetPredictorKO()">↺ Reset knockouts (${koPicked})</button>` : ''}${champ ? `<button class="btn btn-gold" onclick="openPublishModal('predictor')">🌍 Publish picks</button>` : ''}</span>
       </div>`;
@@ -3106,6 +3130,7 @@ function renderPredictor() {
 let publishTarget = 'bracket';
 let publishBracketId = null;   // a saved bracket's id, or null = the one being edited
 function openPublishModal(target = 'bracket', bracketId = null) {
+  if (viewingPred) { showToast(`That's ${viewingPred.name}'s bracket — go back to yours to publish`); return; }
   publishTarget = target;
   publishBracketId = bracketId;
   const sub = document.getElementById('publish-modal-sub');
@@ -3252,7 +3277,7 @@ function myKnockoutBracketHTML(hasReal) {
       <div class="mybr-actions">
         <button class="btn btn-small btn-gold" onclick="event.stopPropagation();setTab('predictor')">✏️ Open &amp; edit</button>
         <button class="btn btn-small" onclick="event.stopPropagation();openPublishModal('predictor')">🌍 Publish</button>
-        <span class="mybr-pts">${hasReal ? sc.total + ' pts' : ''}</span>
+        <span class="mybr-pts">${hasReal ? sc.ko + ' pts' : ''}</span>
       </div>
     </div></div>`;
 }
@@ -3390,19 +3415,23 @@ function predictorLeaderboardHTML(entries) {
   const archived = entries.filter(e => !isLiveKO(e)).map(toRow)
     .sort((a, z) => (z.b.ts||0) - (a.b.ts||0));
   const anyGraded = live.some(r => r.sc.graded > 0);
-  const rowHTML = (row, i, ranked) => `
-      <div class="lb-row${ranked && i < 3 && anyGraded ? ' lb-top' : ''}">
+  const rowHTML = (row, i, ranked) => {
+    const mine = (row.b.name || '').toLowerCase() === myName;
+    const onclick = mine ? `setTab('predictor')` : `viewSharedPredictor('${row.b.id || ''}')`;
+    return `
+      <div class="lb-row lb-clickable${ranked && i < 3 && anyGraded ? ' lb-top' : ''}" onclick="${onclick}">
         <div class="lb-rank">${ranked && anyGraded ? '#' + (i + 1) : '•'}</div>
         <div class="lb-champ">🎯</div>
         <div class="lb-main">
-          <div class="lb-name">${escapeHTML(row.b.name)}${(row.b.name||'').toLowerCase() === myName ? '<span class="lb-mine">YOU</span>' : ''}</div>
-          <div class="lb-sub">${row.n} pick${row.n===1?'':'s'} · ${row.sc.correct}/${row.sc.graded} graded right · ${timeAgo(row.b.ts)}</div>
+          <div class="lb-name">${escapeHTML(row.b.name)}${mine ? '<span class="lb-mine">YOU — tap to edit</span>' : ''}</div>
+          <div class="lb-sub">${row.n} pick${row.n===1?'':'s'} · ${mine ? 'tap to edit' : 'tap to view'} · ${timeAgo(row.b.ts)}</div>
         </div>
         <div class="lb-score">
-          <div class="lb-score-num">${row.sc.total}</div>
+          <div class="lb-score-num">${row.sc.ko}</div>
           <div class="lb-score-lbl">pts</div>
         </div>
       </div>`;
+  };
   const liveHTML = live.length
     ? `<p class="lb-note" style="font-size:12px;color:var(--muted);margin:0 0 10px">${anyGraded
         ? 'Knockout brackets scored by advancement vs reality · R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd +8 · Final +32'
@@ -3473,6 +3502,38 @@ function exitViewing() {
   pickState = {};
   document.getElementById('viewing-banner').style.display = 'none';
   renderAll();
+}
+
+// ─── KNOCKOUT-BRACKET VIEWER (read-only) ──────────────────────
+// Tapping someone else's entry on the Knockout bracket leaderboard swaps the global
+// `predictor` for a read-only copy of theirs. Editing is blocked while viewing; any
+// nav away (setTab) restores yours via the guard at the top of setTab().
+let viewingPred = null;     // { name } while viewing someone else's knockout bracket
+let predBackup = null;
+let _openingPredView = false;
+function viewSharedPredictor(entryId) {
+  const e = explore.list.find(x => String(x.id) === String(entryId));
+  if (!e) { showToast('Could not load that bracket'); return; }
+  let pd;
+  try {
+    const p = decodeHash(e.hash);
+    pd = { picks: sanitizePredictorPicks(p && p.picks), ko: (p && p.ko) || {},
+      finals: (p && p.finals) || { final: null, thirdPlace: null } };
+  } catch { showToast('Could not load that bracket'); return; }
+  if (!viewingPred) predBackup = predictor;
+  viewingPred = { name: e.name || '' };
+  predictor = pd;
+  predFilter = 'ko';
+  _openingPredView = true;
+  setTab('predictor');
+  _openingPredView = false;
+  renderPredictor();
+  window.scrollTo({ top: 0 });
+}
+function exitViewPredictor() {
+  if (predBackup) predictor = predBackup;
+  viewingPred = null; predBackup = null;
+  setTab('explore');
 }
 
 // ─── TICKET ANALYTICS (Monte Carlo + odds anchoring) ─────────

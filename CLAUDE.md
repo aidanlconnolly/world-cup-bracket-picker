@@ -145,6 +145,18 @@ predicted tables). **Group picking is disabled once `realFieldReady()`** (`setPr
 early-returns), the filter chips are `Knockout bracket` then `Group results` (read-only),
 and `predFilter` defaults to `'ko'` so the tab opens straight to the bracket tree.
 
+**Knockout-only scoring display.** The tab summary + the "My knockout bracket" card show
+`scorePredictor().ko` (not `.total`) and drop the `group` stage pill, so legacy group picks
+riding along in `predictor.picks` don't inflate the number vs the pure knockout brackets on
+the board (this was the "why is mine 33 pts?" bug — it's `~31` stale group pts + KO).
+
+**Read-only viewer.** Tapping another person's row on the Knockout leaderboard calls
+`viewSharedPredictor(id)`, which swaps the global `predictor` for a decoded read-only copy
+(`viewingPred`/`predBackup`), shows a banner, blocks all edits (`setPredKO`/`setPredPick`/
+resets/`openPublishModal`/card clicks all early-return on `viewingPred`), and hides the
+publish CTA. Any `setTab` (other than the viewer's own, guarded by `_openingPredView`)
+restores your bracket; own rows route to `setTab('predictor')` (edit) instead.
+
 - **Group phase** (`predFilter==='group'`): 12 per-group cards, each the 6 real
   fixtures (`groupFixtures(g)`) + a live standings table to the right.
   `deriveGroupStandings(g, picks)` tallies W=3/D=1 from your picks (real results used
