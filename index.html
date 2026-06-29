@@ -2834,7 +2834,8 @@ function prunePredKO() {
 // advancement vs reality (PRED_PTS escalation).
 function scorePredictor(pd) {
   const picks = pd.picks || {}, key = buildAnswerKey();
-  const out = { total:0, group:0, ko:0, correct:0, graded:0, byStage:{ group:0, r32:0, r16:0, qf:0, sf:0, third:0, fin:0 } };
+  const out = { total:0, group:0, ko:0, correct:0, graded:0, koGraded:0, koCorrect:0,
+    byStage:{ group:0, r32:0, r16:0, qf:0, sf:0, third:0, fin:0 } };
   for (const m of live.matches || []) {
     if (m.state !== 'post' || !(m.round || '').startsWith('Group')) continue;
     const pick = picks[m.id]; if (!pick) continue;
@@ -2850,6 +2851,20 @@ function scorePredictor(pd) {
   if (pr.champ && key.champ && pr.champ === key.champ) { out.ko += PRED_PTS.fin; out.byStage.fin += PRED_PTS.fin; }
   if (pr.third && key.third && pr.third === key.third) { out.ko += PRED_PTS.third; out.byStage.third += PRED_PTS.third; }
   out.total = out.group + out.ko;
+  // Knockout games graded so far: a pick is graded once its team has advanced (correct)
+  // or been eliminated (wrong) in reality.
+  const koIn = pd.ko || {}, finIn = pd.finals || {};
+  const koDecide = (id, team) => {
+    const rk = id === 'final' ? 'fin' : id === 'third-place' ? 'third' : id.split('-')[0];
+    let advanced, lost;
+    if (rk === 'fin') { advanced = !!key.champ && team === key.champ; lost = !advanced && key.eliminated.has(team); }
+    else if (rk === 'third') { advanced = !!key.third && team === key.third; lost = !!key.third && team !== key.third; }
+    else { const rs = rk==='r32'?key.reached.r16:rk==='r16'?key.reached.qf:rk==='qf'?key.reached.sf:key.reached.fin; advanced = rs.has(team); lost = !advanced && key.eliminated.has(team); }
+    return { graded: advanced || lost, correct: advanced };
+  };
+  const tally = (id, rec) => { if (rec && rec.winner) { const d = koDecide(id, rec.winner); if (d.graded) { out.koGraded++; if (d.correct) out.koCorrect++; } } };
+  for (const def of ALL_KO) tally(def.id, koIn[def.id]);
+  tally('final', finIn.final); tally('third-place', finIn.thirdPlace);
   return out;
 }
 function predPickCount() {
@@ -2972,11 +2987,18 @@ function predMatchCardHTML(def, ps, key) {
   const pts = PRED_PTS[roundKey];
   const q = s => String(s).replace(/'/g, "\\'");
 
+  const realSet = roundKey === 'r32' ? key.reached.r16 : roundKey === 'r16' ? key.reached.qf
+    : roundKey === 'qf' ? key.reached.sf : roundKey === 'sf' ? key.reached.fin : null;
+  // Lock a card once its real game is decided — you can't change a pick for a game
+  // that has already been played.
+  const decided = roundKey === 'fin' ? !!key.champ : roundKey === 'third' ? !!key.third
+    : !!(realSet && (realSet.has(t1) || realSet.has(t2))) || key.eliminated.has(t1) || key.eliminated.has(t2);
+
   const teamRow = (team, slot) => {
     const isWinner = !!pick && team === pick;
     const isLoser  = !!pick && !!team && team !== pick;
     const cls = isWinner ? 'winner' : isLoser ? 'loser' : '';
-    const clickable = !!team && !!t1 && !!t2 && !viewingPred;
+    const clickable = !!team && !!t1 && !!t2 && !viewingPred && !decided;
     const pickAttr = clickable ? `onclick="setPredKO('${def.id}','${q(team)}')"` : '';
     return `<div class="match-team ${cls}${clickable ? ' pick-hover' : ''}" ${pickAttr}>
       <span class="flag">${team ? (TEAMS[team]?.flag || '') : ''}</span>
@@ -2986,8 +3008,6 @@ function predMatchCardHTML(def, ps, key) {
     </div>`;
   };
 
-  const realSet = roundKey === 'r32' ? key.reached.r16 : roundKey === 'r16' ? key.reached.qf
-    : roundKey === 'qf' ? key.reached.sf : roundKey === 'sf' ? key.reached.fin : null;
   let badge;
   if (pick) {
     // advanced = this pick already came true in reality; lost = this pick's team is
@@ -3080,12 +3100,14 @@ function renderPredictor() {
         `<span class="sb-pill">${l} <b>${sc.byStage[k]}</b></span>`).join('')}</div>
       <span class="sb-note">${koPicked} knockout pick${koPicked === 1 ? '' : 's'} · scored on advancement vs reality</span>
     </div>`;
-    filters.innerHTML = [['ko', '🏆 Knockout bracket', banked === 12 ? `${koPicked}/32` : '🔒'],
-        ['group', realOver ? '⚽ Group results' : '⚽ Group stage', `${banked}/12`]]
+    // Once the real field is set, the knockout bracket is the only view — drop the
+    // group chips entirely (group results live on the Matches / Group stage picks tabs).
+    filters.innerHTML = realOver ? '' : [['ko', '🏆 Knockout bracket', banked === 12 ? `${koPicked}/32` : '🔒'],
+        ['group', '⚽ Group stage', `${banked}/12`]]
       .map(([k, l, c]) => `<button class="chip${predFilter === k ? ' active' : ''}" onclick="setPredFilter('${k}')">${l} (${c})</button>`).join('');
   }
 
-  if (predFilter === 'group') {
+  if (predFilter === 'group' && !realFieldReady()) {
     const complete = banked === 12;
     const bar = realOver
       ? `<span class="pcb-prog">Group stage complete — these are the <b>real results</b> (read-only). Your knockout bracket is seeded from them.</span>
@@ -3411,20 +3433,27 @@ function predictorLeaderboardHTML(entries) {
     return hasKO && groupPicks === 0;
   };
   const live = entries.filter(isLiveKO).map(toRow)
-    .sort((a, z) => z.sc.total - a.sc.total || (z.b.ts||0) - (a.b.ts||0));
+    .sort((a, z) => z.sc.ko - a.sc.ko || (z.b.ts||0) - (a.b.ts||0));
   const archived = entries.filter(e => !isLiveKO(e)).map(toRow)
     .sort((a, z) => (z.b.ts||0) - (a.b.ts||0));
-  const anyGraded = live.some(r => r.sc.graded > 0);
-  const rowHTML = (row, i, ranked) => {
+  const anyGraded = live.some(r => r.sc.koGraded > 0);
+  // Standings-style ranks: same points → same rank, shown "T<n>" when tied.
+  live.forEach(r => {
+    r._rank = 1 + live.filter(o => o.sc.ko > r.sc.ko).length;
+    r._tied = live.filter(o => o.sc.ko === r.sc.ko).length > 1;
+  });
+  const rankLabel = r => !anyGraded ? '•' : (r._tied ? 'T' + r._rank : '#' + r._rank);
+  const rowHTML = (row, ranked) => {
     const mine = (row.b.name || '').toLowerCase() === myName;
     const onclick = mine ? `setTab('predictor')` : `viewSharedPredictor('${row.b.id || ''}')`;
+    const gradedTxt = row.sc.koGraded ? `${row.sc.koCorrect}/${row.sc.koGraded} right` : `${row.n} picks`;
     return `
-      <div class="lb-row lb-clickable${ranked && i < 3 && anyGraded ? ' lb-top' : ''}" onclick="${onclick}">
-        <div class="lb-rank">${ranked && anyGraded ? '#' + (i + 1) : '•'}</div>
+      <div class="lb-row lb-clickable${ranked && anyGraded && row._rank === 1 ? ' lb-top' : ''}" onclick="${onclick}">
+        <div class="lb-rank">${ranked ? rankLabel(row) : '•'}</div>
         <div class="lb-champ">🎯</div>
         <div class="lb-main">
           <div class="lb-name">${escapeHTML(row.b.name)}${mine ? '<span class="lb-mine">YOU — tap to edit</span>' : ''}</div>
-          <div class="lb-sub">${row.n} pick${row.n===1?'':'s'} · ${mine ? 'tap to edit' : 'tap to view'} · ${timeAgo(row.b.ts)}</div>
+          <div class="lb-sub">${gradedTxt} · ${mine ? 'tap to edit' : 'tap to view'} · ${timeAgo(row.b.ts)}</div>
         </div>
         <div class="lb-score">
           <div class="lb-score-num">${row.sc.ko}</div>
@@ -3436,11 +3465,11 @@ function predictorLeaderboardHTML(entries) {
     ? `<p class="lb-note" style="font-size:12px;color:var(--muted);margin:0 0 10px">${anyGraded
         ? 'Knockout brackets scored by advancement vs reality · R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd +8 · Final +32'
         : 'No knockout games finished yet — scores appear as the bracket plays out.'}</p>
-      <div class="lb-list">${live.map((r, i) => rowHTML(r, i, true)).join('')}</div>`
+      <div class="lb-list">${live.map(r => rowHTML(r, true)).join('')}</div>`
     : `<p class="live-empty">No knockout brackets published yet — pick yours on the 🎯 Knockout bracket tab and hit Publish to be first on the board.</p>`;
   const archivedHTML = archived.length
     ? `<details class="gb-archive"><summary>🗄 Archived (${archived.length}) — entries carrying group-stage picks, kept for the record</summary>
-        <div class="lb-list" style="margin-top:10px">${archived.map(r => rowHTML(r, 0, false)).join('')}</div></details>`
+        <div class="lb-list" style="margin-top:10px">${archived.map(r => rowHTML(r, false)).join('')}</div></details>`
     : '';
   return liveHTML + archivedHTML;
 }

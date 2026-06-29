@@ -148,7 +148,16 @@ and `predFilter` defaults to `'ko'` so the tab opens straight to the bracket tre
 **Knockout-only scoring display.** The tab summary + the "My knockout bracket" card show
 `scorePredictor().ko` (not `.total`) and drop the `group` stage pill, so legacy group picks
 riding along in `predictor.picks` don't inflate the number vs the pure knockout brackets on
-the board (this was the "why is mine 33 pts?" bug — it's `~31` stale group pts + KO).
+the board (this was the "why is mine 33 pts?" bug — it's `~31` stale group pts + KO). Once
+`realFieldReady()`, the knockout tab drops the group/filter chips entirely (group results
+live on the Matches / Group stage picks tabs). `scorePredictor` also returns
+`koGraded`/`koCorrect` (a KO pick is graded once its team has advanced or been eliminated),
+which drive the leaderboard "X/Y right" line and `anyGraded`. The Knockout leaderboard ranks
+by `sc.ko` with standings-style ties — same points → same rank, shown `T<n>` when ≥2 share it.
+
+**Decided KO games lock.** `predMatchCardHTML` computes `decided` (a card's real game is over
+when either team has advanced or been eliminated) and drops the click handler — you can't
+re-pick a knockout game that's already been played.
 
 **Read-only viewer.** Tapping another person's row on the Knockout leaderboard calls
 `viewSharedPredictor(id)`, which swaps the global `predictor` for a decoded read-only copy
