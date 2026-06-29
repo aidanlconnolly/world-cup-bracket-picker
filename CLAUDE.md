@@ -159,6 +159,14 @@ by `sc.ko` with standings-style ties — same points → same rank, shown `T<n>`
 when either team has advanced or been eliminated) and drops the click handler — you can't
 re-pick a knockout game that's already been played.
 
+**Create-mid-tournament backfill.** `autoAdvanceDecidedKO()` (called in `renderPredictor`'s
+KO branch) fills any *empty* KO slot whose real game was already decided with the actual
+winner, so a bracket made mid-tournament gets credit for games it "missed". It runs ONCE per
+bracket — gated by `predictor.createdAt` (stamped on first run; `delete`d by both reset
+functions so a fresh bracket re-backfills). Games decided *after* creation stay empty for the
+user to pick (createdAt is just a once-flag, never compared to wall-clock, so it's robust to
+device-clock skew). Never overrides a real pick, never runs while `viewingPred`.
+
 **Read-only viewer.** Tapping another person's row on the Knockout leaderboard calls
 `viewSharedPredictor(id)`, which swaps the global `predictor` for a decoded read-only copy
 (`viewingPred`/`predBackup`), shows a banner, blocks all edits (`setPredKO`/`setPredPick`/

@@ -2830,6 +2830,40 @@ function prunePredKO() {
   }
 }
 
+// When you create a knockout bracket mid-tournament, the games already decided AT
+// CREATION are auto-advanced to their real winner (and thus credited) — you can't pick a
+// game that's already been played. Runs ONCE per bracket (gated by `predictor.createdAt`,
+// cleared by the resets so a fresh bracket re-backfills); games decided AFTER creation are
+// yours to pick. Only fills empty slots, never your own picks, never while viewing.
+function autoAdvanceDecidedKO() {
+  if (viewingPred || !realFieldReady()) return;
+  if (predictor.createdAt) return;          // already initialized — backfill only at creation
+  predictor.createdAt = Date.now();
+  const key = buildAnswerKey();
+  let changed = false;
+  const fillRound = (defs) => {
+    const ps = predBracketState();          // reflects winners filled in earlier rounds
+    for (const def of defs) {
+      const cur = predKORec(def.id);
+      if (cur && cur.winner) continue;       // keep a pick you actually made
+      const [t1, t2] = predKOTeams(def, ps);
+      if (!t1 || !t2) continue;
+      const rk = def.id === 'final' ? 'fin' : def.id === 'third-place' ? 'third' : def.id.split('-')[0];
+      let realW = null;
+      if (rk === 'fin') realW = (key.champ && (key.champ === t1 || key.champ === t2)) ? key.champ : null;
+      else if (rk === 'third') realW = (key.third && (key.third === t1 || key.third === t2)) ? key.third : null;
+      else { const rs = rk==='r32'?key.reached.r16:rk==='r16'?key.reached.qf:rk==='qf'?key.reached.sf:key.reached.fin;
+        realW = rs.has(t1) ? t1 : rs.has(t2) ? t2 : null; }
+      if (!realW) continue;                  // not decided at creation — you pick it
+      predKOStore(def.id, { winner: realW, loser: realW === t1 ? t2 : t1, predicted: true });
+      changed = true;
+    }
+  };
+  fillRound(R32_DEF); fillRound(R16_DEF); fillRound(QF_DEF); fillRound(SF_DEF); fillRound([FINAL_DEF, THIRD_DEF]);
+  if (changed) prunePredKO();
+  lsSet('wcPredictor', predictor);
+}
+
 // Score a predictor object: group games per real result (+1), knockouts by
 // advancement vs reality (PRED_PTS escalation).
 function scorePredictor(pd) {
@@ -2879,9 +2913,10 @@ function resetPredictorKO() {
   if (viewingPred) return;
   predictor.ko = {};
   predictor.finals = { final: null, thirdPlace: null };
+  delete predictor.createdAt;   // re-backfill already-played games on next render
   lsSet('wcPredictor', predictor);
   renderPredictor();
-  showToast('Knockout picks cleared — no winners selected');
+  showToast('Knockout picks cleared — already-played games stay credited');
 }
 
 // Wipe every predictor pick (group calls + knockouts) back to a blank slate.
@@ -2891,9 +2926,10 @@ function resetPredictorAll() {
   predictor.picks = {};
   predictor.ko = {};
   predictor.finals = { final: null, thirdPlace: null };
+  delete predictor.createdAt;   // re-backfill already-played games on next render
   lsSet('wcPredictor', predictor);
   renderPredictor();
-  showToast('All picks cleared — nothing is selected');
+  showToast('Picks cleared — already-played games stay credited');
 }
 
 function setPredFilter(f) { predFilter = f; renderPredictor(); }
@@ -3123,6 +3159,7 @@ function renderPredictor() {
       list.innerHTML = `<div class="pred-gate">Loading the real bracket… knockout matchups appear once all 12 group tables are final.<br>
         <button class="btn btn-small btn-gold" style="margin-top:10px" onclick="refreshLive(true).then(renderPredictor)">⟳ Refresh</button></div>`;
     } else {
+      autoAdvanceDecidedKO();   // credit games already played before this bracket existed
       const ps = predBracketState();
       const key = buildAnswerKey();
       const champ = predictor.finals.final ? predictor.finals.final.winner : null;
