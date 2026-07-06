@@ -886,7 +886,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 <section id="predictor-section">
   <h2>🎯 Knockout bracket</h2>
   <div class="live-controls">
-    <span style="font-size:13px;color:var(--muted)">Call every game before kickoff — Group +1 · R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd place +8 · Final +32. Picks lock at kickoff, and games already decided when a bracket is created score 0 — no credit for picking the past.</span>
+    <span id="pred-rules" style="font-size:13px;color:var(--muted)">Call every game before kickoff — Group +1 · R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd place +8 · Final +32. Picks lock at kickoff, and games already decided when a bracket is created score 0 — no credit for picking the past.</span>
     <span class="live-updated" id="pred-meta"></span>
     <button class="btn btn-gold" id="pred-publish-btn" onclick="openPublishModal('predictor')">🌍 Publish picks</button>
     <button class="btn" onclick="refreshLive(true).then(renderPredictor)">⟳ Refresh</button>
@@ -2646,6 +2646,32 @@ function scoreState(s, key) {
 // bracket's Phase 2.
 const PRED_PTS = { group:1, r32:2, r16:4, qf:8, sf:16, third:8, fin:32 };
 const PRED_STAGES = [['group','Groups'],['r32','R32'],['r16','R16'],['qf','QF'],['sf','SF'],['third','3rd'],['fin','Final']];
+
+// ─── Board lock ───────────────────────────────────────────────
+// The competition is FROZEN (July 6, 2026, with the QF field set): no more publishing,
+// unpublishing, or knockout editing — by anybody. Scores keep grading live as the
+// remaining games are played. Flip to false to reopen (must match BOARD_LOCKED in
+// server.py + api/brackets.py).
+const BOARD_LOCKED = true;
+
+// Client-side identity (no auth): every name you've published under on this device,
+// plus any leaderboard entry you've claimed via “⭐ This is mine” in the viewer.
+// Entries matching these names show under “My knockout bracket” with a YOU badge.
+let myNames = lsGet('wcMyNames', null);
+if (!Array.isArray(myNames)) {
+  myNames = [];
+  try { const pn = (localStorage.getItem('wcPublishName') || '').toLowerCase(); if (pn) myNames.push(pn); } catch {}
+  lsSet('wcMyNames', myNames);
+}
+function isMyName(n) { return myNames.includes((n || '').toLowerCase()); }
+function addMyName(n) { const k = (n || '').toLowerCase(); if (k && !myNames.includes(k)) { myNames.push(k); lsSet('wcMyNames', myNames); } }
+function claimPredictorEntry() {
+  if (!viewingPred) return;
+  addMyName(viewingPred.name);
+  showToast(`⭐ ${viewingPred.name} marked as yours — it now shows under “My knockout bracket”`);
+  renderPredictor();
+}
+
 let predictor = lsGet('wcPredictor', { picks:{}, ko:{}, finals:{ final:null, thirdPlace:null } });
 if (!predictor.picks) predictor.picks = {};
 if (!predictor.ko) predictor.ko = {};
@@ -2876,6 +2902,7 @@ function ensureOwnPredictorRoads() {
 }
 
 function setPredPick(eventId, val) {
+  if (BOARD_LOCKED) { showToast('🔒 The board is locked — brackets are final'); return; }
   if (viewingPred) { showToast(`Read-only — this is ${viewingPred.name}'s bracket`); return; }
   if (realFieldReady()) { showToast('Group stage is over — make your picks in the knockout bracket'); return; }
   const m = (live.matches || []).find(x => String(x.id) === String(eventId));
@@ -2905,6 +2932,7 @@ function predKOStore(matchId, rec) {
 }
 
 function setPredKO(matchId, team) {
+  if (BOARD_LOCKED) { showToast('🔒 The board is locked — brackets are final'); return; }
   if (viewingPred) { showToast(`Read-only — this is ${viewingPred.name}'s bracket`); return; }
   const def = predKODefOf(matchId); if (!def) return;
   const [t1, t2] = predKOTeams(def, predBracketState());
@@ -3040,6 +3068,7 @@ function predKOPickCount() {
 }
 // Wipe every knockout winner so the bracket is back to seeded-but-unpicked.
 function resetPredictorKO() {
+  if (BOARD_LOCKED) { showToast('🔒 The board is locked — brackets are final'); return; }
   if (viewingPred) return;
   if (predKOPickCount() && !confirm('Reset all knockout picks? Your bracket restarts from now — games already decided will count as misses (score 0).')) return;
   predictor.ko = {};
@@ -3052,6 +3081,7 @@ function resetPredictorKO() {
 
 // Wipe every predictor pick (group calls + knockouts) back to a blank slate.
 function resetPredictorAll() {
+  if (BOARD_LOCKED) { showToast('🔒 The board is locked — brackets are final'); return; }
   if (viewingPred) return;
   if (predPickCount() && !confirm('Clear all your predictor picks (group games and knockouts)? This can\'t be undone.')) return;
   predictor.picks = {};
@@ -3165,7 +3195,7 @@ function predMatchCardHTML(def, ps, key) {
     const isWinner = !!pick && team === pick;
     const isLoser  = !!pick && !!team && team !== pick;
     const cls = isWinner ? 'winner' : isLoser ? 'loser' : '';
-    const clickable = !!team && !!t1 && !!t2 && !viewingPred && !decided;
+    const clickable = !!team && !!t1 && !!t2 && !viewingPred && !decided && !BOARD_LOCKED;
     const pickAttr = clickable ? `onclick="setPredKO('${def.id}','${q(team)}')"` : '';
     return `<div class="match-team ${cls}${clickable ? ' pick-hover' : ''}" ${pickAttr}>
       <span class="flag">${team ? (TEAMS[team]?.flag || '') : ''}</span>
@@ -3230,7 +3260,7 @@ function renderPredBracket(ps, key) {
   // picked for BOTH the Final and the 3rd-place game.
   const wrap = document.getElementById('pred-bracket-wrap');
   wrap.querySelectorAll('.pred-publish-cta').forEach(e => e.remove());
-  if (viewingPred) return;   // read-only view of someone else's bracket — no publish CTA
+  if (viewingPred || BOARD_LOCKED) return;   // read-only view / locked board — no publish CTA
   const ready = !!(predictor.finals.final && predictor.finals.thirdPlace);
   const cta = document.createElement('div');
   cta.className = 'pred-publish-cta' + (ready ? '' : ' disabled');
@@ -3263,9 +3293,10 @@ function renderPredictor() {
   const banked = realFieldReady() ? 12 : Object.keys(GROUPS).filter(g => deriveGroupStandings(g)).length;
   const realOver = realFieldReady();
   const pubBtn = document.getElementById('pred-publish-btn');
-  if (pubBtn) pubBtn.style.display = viewingPred ? 'none' : '';
+  if (pubBtn) pubBtn.style.display = (viewingPred || BOARD_LOCKED) ? 'none' : '';
   if (viewingPred) {
     summary.innerHTML = `<div class="pred-view-banner">👀 Viewing <strong>${escapeHTML(viewingPred.name)}</strong>'s knockout bracket — read-only
+      ${isMyName(viewingPred.name) ? '' : `<button class="btn" onclick="claimPredictorEntry()" title="Mark this entry as yours on this device — it shows under My knockout bracket">⭐ This is mine</button>`}
       <button class="btn btn-gold" onclick="exitViewPredictor()">← Back to the leaderboard</button></div>`;
     filters.innerHTML = '';
   } else {
@@ -3310,6 +3341,8 @@ function renderPredictor() {
         : ` Now pick the 🥉 3rd-place playoff (by the Final) to finish, then publish.`) : '';
       const bar = viewingPred
         ? `<div class="pred-cta-bar"><span class="pcb-prog">👀 <b>${escapeHTML(viewingPred.name)}</b>'s knockout bracket — read-only.${champ ? ` Champion: ${TEAMS[champ]?.flag || ''} <b>${escapeHTML(champ)}</b>.` : ''}</span></div>`
+        : BOARD_LOCKED
+        ? `<div class="pred-cta-bar"><span class="pcb-prog">🔒 <b>The board is locked</b> — brackets are final. Scores keep updating as the remaining games are played.${champ ? ` Your champion: ${TEAMS[champ]?.flag || ''} <b>${escapeHTML(champ)}</b>.` : ''}</span></div>`
         : `<div class="pred-cta-bar">
         <span class="pcb-prog">Knockouts seeded from the real group results — <b>tap a team</b> in each game to advance them.${champ ? ` Your champion: ${TEAMS[champ]?.flag || ''} <b>${escapeHTML(champ)}</b>.` : ' Nothing is picked for you.'}${doneNote}</span>
         <span class="pcb-actions">${koPicked ? `<button class="btn" onclick="resetPredictorKO()">↺ Reset knockouts (${koPicked})</button>` : ''}${champ ? `<button class="btn btn-gold" onclick="openPublishModal('predictor')">🌍 Publish picks</button>` : ''}</span>
@@ -3330,6 +3363,7 @@ function renderPredictor() {
 let publishTarget = 'bracket';
 let publishBracketId = null;   // a saved bracket's id, or null = the one being edited
 function openPublishModal(target = 'bracket', bracketId = null) {
+  if (BOARD_LOCKED) { showToast('🔒 The board is locked — no more publishing'); return; }
   if (viewingPred) { showToast(`That's ${viewingPred.name}'s bracket — go back to yours to publish`); return; }
   publishTarget = target;
   publishBracketId = bracketId;
@@ -3361,9 +3395,11 @@ function openPublishModal(target = 'bracket', bracketId = null) {
 function closePublishModal() { document.getElementById('modal-overlay').classList.remove('show'); }
 
 async function submitPublish() {
+  if (BOARD_LOCKED) { showToast('🔒 The board is locked — no more publishing'); return; }
   const name = (document.getElementById('publish-name').value || '').trim();
   if (!name) { showToast('Enter a name to publish under'); return; }
   try { localStorage.setItem('wcPublishName', name); } catch {}
+  addMyName(name);
   let payload;
   try {
     if (publishTarget === 'predictor') {
@@ -3457,29 +3493,54 @@ function splitEntries() {
 function myKnockoutBracketHTML(hasReal) {
   const pd = predictor;
   const koPicks = Object.keys(pd.ko || {}).length + (pd.finals.final ? 1 : 0) + (pd.finals.thirdPlace ? 1 : 0);
+  // Published entries that are YOURS (published from this device, or claimed with
+  // “⭐ This is mine” in the viewer) — cards alongside the local bracket.
+  const owned = explore.list.filter(e => e.kind === 'predictor' && isMyName(e.name));
+  const ownedCards = owned.map(e => {
+    let pts = '';
+    try {
+      const p = decodeHash(e.hash);
+      let opd = { picks: sanitizePredictorPicks(p && p.picks), ko: (p && p.ko) || {}, finals: (p && p.finals) || { final:null, thirdPlace:null } };
+      opd = remapPredictorKO(opd);
+      if (hasReal) pts = scorePredictor(opd, e.createdAt || e.ts || 0).ko + ' pts';
+    } catch {}
+    return `<div class="mybr-card" onclick="viewSharedPredictor('${e.id}')">
+      <div class="mybr-name">${TEAMS[e.champion]?.flag || '🎯'} ${escapeHTML(e.name)} <span class="mybr-badge">PUBLISHED</span></div>
+      <div class="mybr-sub">${e.champion ? `${escapeHTML(e.champion)} to win it · ` : ''}on the leaderboard · tap to view</div>
+      <div class="mybr-actions">
+        <button class="btn btn-small btn-gold" onclick="event.stopPropagation();viewSharedPredictor('${e.id}')">👀 View</button>
+        <span class="mybr-pts">${pts}</span>
+      </div>
+    </div>`;
+  }).join('');
+  const sub = BOARD_LOCKED
+    ? '🔒 the board is locked — brackets are final, scores keep updating as games are played'
+    : 'your picks — tap to keep editing on the Knockout bracket tab';
   if (!koPicks) {
-    return `<div class="gb-h">🎯 My knockout bracket</div>
-      <div class="mybr-grid"><div class="mybr-card" onclick="setTab('predictor')">
+    const emptyLocal = BOARD_LOCKED ? '' : `<div class="mybr-card" onclick="setTab('predictor')">
         <div class="mybr-name">🎯 Your knockout bracket</div>
         <div class="mybr-sub">No picks yet — open the Knockout bracket tab and tap teams to advance them.</div>
         <div class="mybr-actions"><button class="btn btn-small btn-gold" onclick="event.stopPropagation();setTab('predictor')">✏️ Start picking</button></div>
-      </div></div>`;
+      </div>`;
+    if (!emptyLocal && !ownedCards) return '';
+    return `<div class="gb-h">🎯 My knockout bracket${ownedCards ? ` <span class="tk-sub">${sub}</span>` : ''}</div>
+      <div class="mybr-grid">${ownedCards}${emptyLocal}</div>`;
   }
   const champ = pd.finals.final ? pd.finals.final.winner : null;
   const sc = scorePredictor(pd, pd.createdAt || 0);
-  const myName = (localStorage.getItem('wcPublishName') || '').toLowerCase();
-  const published = !!myName && explore.list.some(e => e.kind === 'predictor' && (e.name||'').toLowerCase() === myName);
-  return `<div class="gb-h">🎯 My knockout bracket <span class="tk-sub">your picks — tap to keep editing on the Knockout bracket tab</span></div>
-    <div class="mybr-grid"><div class="mybr-card active" onclick="setTab('predictor')">
+  const published = explore.list.some(e => e.kind === 'predictor' && isMyName(e.name));
+  const localCard = `<div class="mybr-card active" onclick="setTab('predictor')">
       <div class="mybr-name">${TEAMS[champ]?.flag || '🎯'} ${champ ? escapeHTML(champ) + ' to win it' : 'Your knockout bracket'}
-        ${published ? '<span class="mybr-badge">PUBLISHED</span>' : ''}</div>
+        <span class="mybr-badge">ON THIS DEVICE</span></div>
       <div class="mybr-sub">${koPicks} knockout pick${koPicks === 1 ? '' : 's'}${champ ? '' : ' · pick your champion'}</div>
       <div class="mybr-actions">
-        <button class="btn btn-small btn-gold" onclick="event.stopPropagation();setTab('predictor')">✏️ Open &amp; edit</button>
-        <button class="btn btn-small" onclick="event.stopPropagation();openPublishModal('predictor')">🌍 Publish</button>
+        <button class="btn btn-small btn-gold" onclick="event.stopPropagation();setTab('predictor')">${BOARD_LOCKED ? '👀 Open' : '✏️ Open &amp; edit'}</button>
+        ${BOARD_LOCKED ? '' : `<button class="btn btn-small" onclick="event.stopPropagation();openPublishModal('predictor')">🌍 Publish</button>`}
         <span class="mybr-pts">${hasReal ? sc.ko + ' pts' : ''}</span>
       </div>
-    </div></div>`;
+    </div>`;
+  return `<div class="gb-h">🎯 My knockout bracket${owned.length ? 's' : ''} <span class="tk-sub">${sub}</span></div>
+    <div class="mybr-grid">${ownedCards}${localCard}</div>`;
 }
 
 function myBracketsHTML(key, hasReal) {
@@ -3592,7 +3653,6 @@ function bracketLeaderboardHTML(entries, key, hasReal) {
 
 function predictorLeaderboardHTML(entries) {
   document.getElementById('gb-tabs').innerHTML = '';
-  const myName = (localStorage.getItem('wcPublishName') || '').toLowerCase();
   const toRow = ({ b, payload }) => {
     let pd = { picks: sanitizePredictorPicks(payload && payload.picks),
       ko: (payload && payload.ko) || {}, finals: (payload && payload.finals) || {} };
@@ -3625,16 +3685,16 @@ function predictorLeaderboardHTML(entries) {
   });
   const rankLabel = r => !anyGraded ? '•' : (r._tied ? 'T' + r._rank : '#' + r._rank);
   const rowHTML = (row, ranked) => {
-    const mine = (row.b.name || '').toLowerCase() === myName;
-    const onclick = mine ? `setTab('predictor')` : `viewSharedPredictor('${row.b.id || ''}')`;
+    const mine = isMyName(row.b.name);
+    const onclick = (mine && !BOARD_LOCKED) ? `setTab('predictor')` : `viewSharedPredictor('${row.b.id || ''}')`;
     const gradedTxt = row.sc.koGraded ? `${row.sc.koCorrect}/${row.sc.koGraded} right` : `${row.n} picks`;
     return `
       <div class="lb-row lb-clickable${ranked && anyGraded && row._rank === 1 ? ' lb-top' : ''}" onclick="${onclick}">
         <div class="lb-rank">${ranked ? rankLabel(row) : '•'}</div>
         <div class="lb-champ">🎯</div>
         <div class="lb-main">
-          <div class="lb-name">${escapeHTML(row.b.name)}${mine ? '<span class="lb-mine">YOU — tap to edit</span>' : ''}</div>
-          <div class="lb-sub">${gradedTxt} · ${mine ? 'tap to edit' : 'tap to view'} · ${timeAgo(row.b.ts)}</div>
+          <div class="lb-name">${escapeHTML(row.b.name)}${mine ? `<span class="lb-mine">YOU${BOARD_LOCKED ? '' : ' — tap to edit'}</span>` : ''}</div>
+          <div class="lb-sub">${gradedTxt} · ${(mine && !BOARD_LOCKED) ? 'tap to edit' : 'tap to view'} · ${timeAgo(row.b.ts)}</div>
         </div>
         <div class="lb-score">
           <div class="lb-score-num">${row.sc.ko}</div>
@@ -3666,7 +3726,9 @@ function renderExplore() {
   // say exactly which bracket the header button will publish
   const pubBtn = document.getElementById('gb-publish-btn');
   if (pubBtn) {
-    if (gbGame === 'predictor') {
+    if (BOARD_LOCKED) {
+      pubBtn.style.display = 'none';
+    } else if (gbGame === 'predictor') {
       pubBtn.textContent = '🌍 Publish my knockout bracket';
       pubBtn.onclick = () => openPublishModal('predictor');
     } else {
@@ -4768,6 +4830,10 @@ function showToast(msg) {
 // ─── INIT ─────────────────────────────────────────────────────
 loadState();
 state.mode = 'pick';
+if (BOARD_LOCKED) {
+  const rules = document.getElementById('pred-rules');
+  if (rules) rules.innerHTML = '🔒 <b>The board is locked — brackets are final.</b> Scoring continues as the remaining games are played: R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd place +8 · Final +32.';
+}
 renderAll();
 loadLiveCache();
 computeRatings();

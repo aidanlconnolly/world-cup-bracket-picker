@@ -11,6 +11,9 @@ from http.server import BaseHTTPRequestHandler
 #   KV_REST_API_URL + KV_REST_API_TOKEN (or UPSTASH_REDIS_REST_URL/_TOKEN).
 KEY = 'wc2026:brackets'
 MAX_BRACKETS = 100
+# Frozen competition (July 6, 2026): POST rejects all mutations while True.
+# Keep in sync with BOARD_LOCKED in index.html + server.py.
+BOARD_LOCKED = True
 
 
 def kv_config():
@@ -57,6 +60,8 @@ class handler(BaseHTTPRequestHandler):
             self._respond({'error': 'storage unavailable'}, 502)
 
     def do_POST(self):
+        if BOARD_LOCKED:
+            return self._respond({'error': 'The board is locked — brackets are final'}, 403)
         if not kv_config()[0]:
             return self._respond({'error': 'storage not configured'}, 503)
         try:

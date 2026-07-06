@@ -159,6 +159,25 @@ by `sc.ko` with standings-style ties — same points → same rank, shown `T<n>`
 when either team has advanced or been eliminated) and drops the click handler — you can't
 re-pick a knockout game that's already been played.
 
+**BOARD LOCK — the competition is frozen (July 6, 2026).** `BOARD_LOCKED = true` in
+`index.html` + `BOARD_LOCKED = True` in `server.py` and `api/brackets.py` (all three must
+match; flip to reopen). Server: POST `/api/brackets` returns 403 for every mutation
+(publish AND remove); GET still serves. Client: all publish affordances hidden
+(`gb-publish-btn`, `pred-publish-btn`, the bracket-tree CTA), `setPredKO`/`setPredPick`/
+both resets/`openPublishModal`/`submitPublish` early-return with a 🔒 toast, cards aren't
+clickable, and the strapline (`#pred-rules`, set in INIT) + KO cta-bar announce the lock.
+Scoring keeps grading live from the ESPN feed. The group-stage tab's local sandbox still
+edits (its board can't change — publish is blocked).
+
+**Client-side identity (`wcMyNames`).** An array of lowercase names that are "yours" on
+this device: seeded once from the legacy `wcPublishName`, appended by `submitPublish`, and
+extendable via the **“⭐ This is mine”** button in the read-only viewer banner
+(`claimPredictorEntry()`) — needed because a device only remembered the LAST published
+name (and publishing is locked). `isMyName()` drives the leaderboard YOU badges (rows
+route to the viewer while locked, edit otherwise) and `myKnockoutBracketHTML`, which now
+shows a card per owned PUBLISHED entry (decoded → remapped → cutoff-scored, tap → viewer)
+alongside the local "ON THIS DEVICE" card.
+
 **No credit for picking the past (creation-time cutoff).** `scorePredictor(pd, cutoff)`
 takes a creation timestamp: a pick only earns points if its real game **kicked off after
 the cutoff** (`buildAnswerKey()` records per-team kickoffs in `key.reachedAt.{r16,qf,sf,fin}`

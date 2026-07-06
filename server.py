@@ -30,6 +30,8 @@ def index():
 # brackets route must use KV there (read-only filesystem). Locally, with no KV
 # env vars, it falls back to a JSON file next to server.py.
 BRACKETS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'brackets.local.json')
+# Frozen competition: POST /api/brackets rejects all mutations while True.
+BOARD_LOCKED = True
 KV_KEY = 'wc2026:brackets'
 
 def kv_config():
@@ -75,6 +77,12 @@ def brackets():
         return '', 200
     if request.method == 'GET':
         return jsonify({'brackets': load_brackets()})
+
+    # The competition is frozen (July 6, 2026): no publishes, edits, or removals by
+    # anybody — scores keep grading from the live feed. Flip to False to reopen
+    # (keep in sync with BOARD_LOCKED in index.html + api/brackets.py).
+    if BOARD_LOCKED:
+        return jsonify({'error': 'The board is locked — brackets are final'}), 403
 
     data = request.json or {}
     name = re.sub(r'[\x00-\x1f<>]', '', str(data.get('name', ''))).strip()[:30]
