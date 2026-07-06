@@ -2654,9 +2654,10 @@ const PRED_STAGES = [['group','Groups'],['r32','R32'],['r16','R16'],['qf','QF'],
 // server.py + api/brackets.py).
 const BOARD_LOCKED = true;
 
-// Client-side identity (no auth): every name you've published under on this device,
-// plus any leaderboard entry you've claimed via “⭐ This is mine” in the viewer.
-// Entries matching these names show under “My knockout bracket” with a YOU badge.
+// Client-side identity (no auth): every name published under on this device (seeded
+// from the legacy wcPublishName; names claimed while the retired “This is mine”
+// button existed persist in the same list). Entries matching these names show under
+// “My knockout bracket” with a YOU badge.
 let myNames = lsGet('wcMyNames', null);
 if (!Array.isArray(myNames)) {
   myNames = [];
@@ -2665,12 +2666,6 @@ if (!Array.isArray(myNames)) {
 }
 function isMyName(n) { return myNames.includes((n || '').toLowerCase()); }
 function addMyName(n) { const k = (n || '').toLowerCase(); if (k && !myNames.includes(k)) { myNames.push(k); lsSet('wcMyNames', myNames); } }
-function claimPredictorEntry() {
-  if (!viewingPred) return;
-  addMyName(viewingPred.name);
-  showToast(`⭐ ${viewingPred.name} marked as yours — it now shows under “My knockout bracket”`);
-  renderPredictor();
-}
 
 let predictor = lsGet('wcPredictor', { picks:{}, ko:{}, finals:{ final:null, thirdPlace:null } });
 if (!predictor.picks) predictor.picks = {};
@@ -3296,7 +3291,6 @@ function renderPredictor() {
   if (pubBtn) pubBtn.style.display = (viewingPred || BOARD_LOCKED) ? 'none' : '';
   if (viewingPred) {
     summary.innerHTML = `<div class="pred-view-banner">👀 Viewing <strong>${escapeHTML(viewingPred.name)}</strong>'s knockout bracket — read-only
-      ${isMyName(viewingPred.name) ? '' : `<button class="btn" onclick="claimPredictorEntry()" title="Mark this entry as yours on this device — it shows under My knockout bracket">⭐ This is mine</button>`}
       <button class="btn btn-gold" onclick="exitViewPredictor()">← Back to the leaderboard</button></div>`;
     filters.innerHTML = '';
   } else {
@@ -3493,8 +3487,8 @@ function splitEntries() {
 function myKnockoutBracketHTML(hasReal) {
   const pd = predictor;
   const koPicks = Object.keys(pd.ko || {}).length + (pd.finals.final ? 1 : 0) + (pd.finals.thirdPlace ? 1 : 0);
-  // Published entries that are YOURS (published from this device, or claimed with
-  // “⭐ This is mine” in the viewer) — cards alongside the local bracket.
+  // Published entries that are YOURS (names in wcMyNames) — cards alongside the
+  // local bracket.
   const owned = explore.list.filter(e => e.kind === 'predictor' && isMyName(e.name));
   const ownedCards = owned.map(e => {
     let pts = '';

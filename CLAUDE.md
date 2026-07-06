@@ -170,11 +170,11 @@ Scoring keeps grading live from the ESPN feed. The group-stage tab's local sandb
 edits (its board can't change — publish is blocked).
 
 **Client-side identity (`wcMyNames`).** An array of lowercase names that are "yours" on
-this device: seeded once from the legacy `wcPublishName`, appended by `submitPublish`, and
-extendable via the **“⭐ This is mine”** button in the read-only viewer banner
-(`claimPredictorEntry()`) — needed because a device only remembered the LAST published
-name (and publishing is locked). `isMyName()` drives the leaderboard YOU badges (rows
-route to the viewer while locked, edit otherwise) and `myKnockoutBracketHTML`, which now
+this device: seeded once from the legacy `wcPublishName` and appended by `submitPublish`.
+(A “⭐ This is mine” claim button briefly existed in the viewer banner and was removed at
+the owner's request — names claimed while it existed persist in the same list, so keep
+reading `wcMyNames`, not `wcPublishName`.) `isMyName()` drives the leaderboard YOU badges
+(rows route to the viewer while locked, edit otherwise) and `myKnockoutBracketHTML`, which
 shows a card per owned PUBLISHED entry (decoded → remapped → cutoff-scored, tap → viewer)
 alongside the local "ON THIS DEVICE" card.
 
