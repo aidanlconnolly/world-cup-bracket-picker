@@ -3685,7 +3685,7 @@ function predictorLeaderboardHTML(entries) {
     return `
       <div class="lb-row lb-clickable${ranked && anyGraded && row._rank === 1 ? ' lb-top' : ''}" onclick="${onclick}">
         <div class="lb-rank">${ranked ? rankLabel(row) : '•'}</div>
-        <div class="lb-champ">🎯</div>
+        <div class="lb-champ" title="${TEAMS[row.b.champion] ? escapeHTML(row.b.champion) + ' to win it' : ''}">${TEAMS[row.b.champion]?.flag || '🎯'}</div>
         <div class="lb-main">
           <div class="lb-name">${escapeHTML(row.b.name)}${mine ? `<span class="lb-mine">YOU${BOARD_LOCKED ? '' : ' — tap to edit'}</span>` : ''}</div>
           <div class="lb-sub">${gradedTxt} · ${(mine && !BOARD_LOCKED) ? 'tap to edit' : 'tap to view'} · ${timeAgo(row.b.ts)}</div>
