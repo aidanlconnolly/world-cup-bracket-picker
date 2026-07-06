@@ -31,7 +31,7 @@ def index():
 # env vars, it falls back to a JSON file next to server.py.
 BRACKETS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'brackets.local.json')
 # Frozen competition: POST /api/brackets rejects all mutations while True.
-BOARD_LOCKED = True
+BOARD_LOCKED = False  # TEMPORARILY open for owner fairness edits — re-lock immediately after
 KV_KEY = 'wc2026:brackets'
 
 def kv_config():
@@ -116,6 +116,17 @@ def brackets():
         return jsonify({'error': 'invalid bracket'}), 400
 
     now_ms = int(time.time() * 1000)
+
+    def ms_or(key, fallback):
+        # Owner-only override for fairness adjustments (e.g. crediting the first KO game
+        # to entries made minutes after its kickoff). Only reachable while the board is
+        # temporarily unlocked — normal publishes never send these fields.
+        try:
+            v = int(data.get(key))
+            return v if 0 < v < 4102444800000 else fallback
+        except (TypeError, ValueError):
+            return fallback
+
     entry = {
         'id': f'{now_ms}-{secrets.token_hex(3)}',
         'name': name,
@@ -124,10 +135,10 @@ def brackets():
         'runnerUp': str(data.get('runnerUp', ''))[:40],
         'mode': 'pick',
         'hash': bracket_hash,
-        'ts': now_ms,
+        'ts': ms_or('ts', now_ms),
         # first-publish time, kept across republishes — the client only credits games
         # that kicked off after an entry was created (no credit for picking the past)
-        'createdAt': (prev.get('createdAt') or prev.get('ts') or now_ms) if prev else now_ms,
+        'createdAt': ms_or('createdAt', (prev.get('createdAt') or prev.get('ts') or now_ms) if prev else now_ms),
     }
     remaining.insert(0, entry)
     try:

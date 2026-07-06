@@ -97,6 +97,16 @@ class handler(BaseHTTPRequestHandler):
             return self._respond({'error': 'invalid bracket'}, 400)
 
         now_ms = int(time.time() * 1000)
+
+        def ms_or(key, fallback):
+            # Owner-only override for fairness adjustments; only reachable while the
+            # board is temporarily unlocked. Normal publishes never send these fields.
+            try:
+                v = int(data.get(key))
+                return v if 0 < v < 4102444800000 else fallback
+            except (TypeError, ValueError):
+                return fallback
+
         entry = {
             'id': f'{now_ms}-{secrets.token_hex(3)}',
             'name': name,
@@ -105,14 +115,14 @@ class handler(BaseHTTPRequestHandler):
             'runnerUp': str(data.get('runnerUp', ''))[:40],
             'mode': 'pick',
             'hash': bracket_hash,
-            'ts': now_ms,
+            'ts': ms_or('ts', now_ms),
         }
         try:
             existing = load_brackets()
             prev = next((b for b in existing if same(b)), None)
             # first-publish time, kept across republishes — the client only credits
             # games that kicked off after an entry was created
-            entry['createdAt'] = (prev.get('createdAt') or prev.get('ts') or now_ms) if prev else now_ms
+            entry['createdAt'] = ms_or('createdAt', (prev.get('createdAt') or prev.get('ts') or now_ms) if prev else now_ms)
             lst = [b for b in existing if not same(b)]
             lst.insert(0, entry)
             kv_command('SET', KEY, json.dumps(lst[:MAX_BRACKETS]))
