@@ -99,21 +99,27 @@ def brackets():
             return jsonify({'error': 'storage unavailable'}), 502
         return jsonify({'ok': True, 'removed': name})
 
-    remaining = [b for b in load_brackets() if not same(b)]
+    existing = load_brackets()
+    prev = next((b for b in existing if same(b)), None)
+    remaining = [b for b in existing if not same(b)]
 
     bracket_hash = str(data.get('hash', ''))
     if not bracket_hash or len(bracket_hash) > 50000:
         return jsonify({'error': 'invalid bracket'}), 400
 
+    now_ms = int(time.time() * 1000)
     entry = {
-        'id': f'{int(time.time()*1000)}-{secrets.token_hex(3)}',
+        'id': f'{now_ms}-{secrets.token_hex(3)}',
         'name': name,
         'kind': kind,
         'champion': str(data.get('champion', ''))[:40],
         'runnerUp': str(data.get('runnerUp', ''))[:40],
         'mode': 'pick',
         'hash': bracket_hash,
-        'ts': int(time.time() * 1000),
+        'ts': now_ms,
+        # first-publish time, kept across republishes — the client only credits games
+        # that kicked off after an entry was created (no credit for picking the past)
+        'createdAt': (prev.get('createdAt') or prev.get('ts') or now_ms) if prev else now_ms,
     }
     remaining.insert(0, entry)
     try:

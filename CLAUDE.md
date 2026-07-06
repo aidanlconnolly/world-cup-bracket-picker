@@ -159,13 +159,40 @@ by `sc.ko` with standings-style ties — same points → same rank, shown `T<n>`
 when either team has advanced or been eliminated) and drops the click handler — you can't
 re-pick a knockout game that's already been played.
 
+**No credit for picking the past (creation-time cutoff).** `scorePredictor(pd, cutoff)`
+takes a creation timestamp: a pick only earns points if its real game **kicked off after
+the cutoff** (`buildAnswerKey()` records per-team kickoffs in `key.reachedAt.{r16,qf,sf,fin}`
++ `champAt`/`thirdAt`). A correct call on a game that was already under way / decided when
+the bracket was created grades as a **miss** (counts in `koGraded`, not `koCorrect`) and
+shows a grey `🔒 0` badge (`ko-pts pre`) instead of `+pts`. Cutoffs used: leaderboard
+entries → `b.createdAt || b.ts` (server keeps first-publish time across republishes — both
+`server.py` and `api/brackets.py` copy `createdAt` from the entry they replace); the
+read-only viewer → `viewingPred.cutoff`; your own bracket → `predictor.createdAt`. This is
+what stops "make a fresh bracket today, get all decided games auto-credited" (retroactively
+re-scored existing entries too, e.g. Keagan v3 48→4).
+
 **Create-mid-tournament backfill.** `autoAdvanceDecidedKO()` (called in `renderPredictor`'s
 KO branch) fills any *empty* KO slot whose real game was already decided with the actual
-winner, so a bracket made mid-tournament gets credit for games it "missed". It runs ONCE per
-bracket — gated by `predictor.createdAt` (stamped on first run; `delete`d by both reset
-functions so a fresh bracket re-backfills). Games decided *after* creation stay empty for the
-user to pick (createdAt is just a once-flag, never compared to wall-clock, so it's robust to
-device-clock skew). Never overrides a real pick, never runs while `viewingPred`.
+winner — purely so the tree flows (downstream matchups seed); those fills **score 0** via
+the cutoff above. It runs ONCE per bracket — gated by `predictor.createdAt` (stamped
+`Date.now()` on first run; `delete`d by both reset functions so a fresh bracket re-backfills
+AND re-cutoffs — resetting mid-tournament forfeits decided games, hence the confirm in
+`resetPredictorKO`). Games decided *after* creation stay empty for the user to pick. Never
+overrides a real pick, never runs while `viewingPred`.
+
+**Old-layout road migration.** `remapPredictorKO(pd)` rebuilds a bracket whose KO picks were
+made on the pre-fix R32 layout (before commit `71a85e3` fixed the roads / `f1cc74c` seeded
+from FIFA's real 3rd-place allocation — picks are keyed by slot POSITION, so on today's tree
+they surfaced in the wrong games, "where does Brazil come from?"). Staleness = any r32 pick
+whose winner isn't in that slot's real seed pair (`realR32SeedPairs()`, memoized). The rebuild
+re-solves the real tree round by round from the picks' *intent*: exact stored head-to-heads
+first (any round — this is how "France over Morocco in the SF" lands on the real France–Morocco
+QF), then a sibling-lookahead (an edge vs the adjacent game's winner, only from a *deeper*
+round than the slot — same-round edges mean one already eliminated the other), then
+intended-depth (# of KO wins), else the game is left unpicked. Applied at decode in
+`viewSharedPredictor` + `predictorLeaderboardHTML.toRow`, and once to a stale local bracket
+via `ensureOwnPredictorRoads()` (renderPredictor/renderExplore). Only 3 published entries
+were stale: Aidan KO, NC ko bracket, Aidan Connolly v4.
 
 **Read-only viewer.** Tapping another person's row on the Knockout leaderboard calls
 `viewSharedPredictor(id)`, which swaps the global `predictor` for a decoded read-only copy

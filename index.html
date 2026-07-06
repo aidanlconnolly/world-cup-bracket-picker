@@ -259,6 +259,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 .ko-pts.tbd { color: var(--muted); }
 .ko-pts.win { color: #2ecc71; }
 .ko-pts.loss { color: #ff6b6b; }
+.ko-pts.pre { color: var(--muted); cursor: help; }
 
 .btn-simulate {
   background: rgba(255,215,0,0.12); border: 1px solid rgba(255,215,0,0.25);
@@ -885,7 +886,7 @@ section h2::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,
 <section id="predictor-section">
   <h2>🎯 Knockout bracket</h2>
   <div class="live-controls">
-    <span style="font-size:13px;color:var(--muted)">Call every game before kickoff — Group +1 · R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd place +8 · Final +32. Picks lock at kickoff.</span>
+    <span style="font-size:13px;color:var(--muted)">Call every game before kickoff — Group +1 · R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd place +8 · Final +32. Picks lock at kickoff, and games already decided when a bracket is created score 0 — no credit for picking the past.</span>
     <span class="live-updated" id="pred-meta"></span>
     <button class="btn btn-gold" id="pred-publish-btn" onclick="openPublishModal('predictor')">🌍 Publish picks</button>
     <button class="btn" onclick="refreshLive(true).then(renderPredictor)">⟳ Refresh</button>
@@ -2554,6 +2555,9 @@ function koRoundOf(m) {
 function buildAnswerKey() {
   const key = { groups:{}, groupsDecided:0, thirds:null,
     reached:{ r16:new Set(), qf:new Set(), sf:new Set(), fin:new Set() },
+    // kickoff (ms) of the game that put each team through — lets scoring skip credit
+    // for games that were already under way / decided when a bracket was created
+    reachedAt:{ r16:{}, qf:{}, sf:{}, fin:{} }, champAt:null, thirdAt:null,
     champ:null, third:null, koPlayed:0, eliminated:new Set() };
   const ms = live.matches || [];
   const groupPosts = ms.filter(m => (m.round||'').startsWith('Group') && m.state === 'post');
@@ -2581,12 +2585,13 @@ function buildAnswerKey() {
     const loser = w === m.home.name ? m.away.name : m.home.name;
     if (loser) key.eliminated.add(loser);
     const rd = koRoundOf(m);
-    if (rd === 'r32') key.reached.r16.add(w);
-    else if (rd === 'r16') key.reached.qf.add(w);
-    else if (rd === 'qf') key.reached.sf.add(w);
-    else if (rd === 'sf') key.reached.fin.add(w);
-    else if (rd === 'fin') key.champ = w;
-    else if (rd === 'third') key.third = w;
+    const kick = new Date(m.date).getTime();
+    if (rd === 'r32') { key.reached.r16.add(w); key.reachedAt.r16[w] = kick; }
+    else if (rd === 'r16') { key.reached.qf.add(w); key.reachedAt.qf[w] = kick; }
+    else if (rd === 'qf') { key.reached.sf.add(w); key.reachedAt.sf[w] = kick; }
+    else if (rd === 'sf') { key.reached.fin.add(w); key.reachedAt.fin[w] = kick; }
+    else if (rd === 'fin') { key.champ = w; key.champAt = kick; }
+    else if (rd === 'third') { key.third = w; key.thirdAt = kick; }
   }
   return key;
 }
@@ -2756,6 +2761,120 @@ function sanitizePredictorPicks(raw) {
   return out;
 }
 
+// ─── Old-layout migration: re-map a stale bracket onto the real roads ─────────
+// Brackets made before the R32 slots were fixed to the official FIFA layout (and
+// seeded from FIFA's real 3rd-place allocation) stored picks by slot POSITION, so on
+// today's tree their teams surface in the wrong games (Brazil popping out of the
+// Netherlands–Morocco slot). Rebuild such a bracket from its picks' INTENT — who was
+// advanced how far, and who was picked over whom — re-solved slot by slot on the real
+// roads. Matchups that never actually happened (the old greedy 3rd-place guesses) are
+// dropped; everything reconstructable (usually the whole champion run) is kept.
+let _realR32Seeds = null;   // fixed once the real field is set — safe to memoize
+function realR32SeedPairs() {
+  if (_realR32Seeds) return _realR32Seeds;
+  const emptyPS = predStateFrom({ picks:{}, ko:{}, finals:{} });
+  const seeds = {};
+  for (const def of R32_DEF) seeds[def.id] = predKOTeams(def, emptyPS);
+  if (Object.values(seeds).every(([a, b]) => a && b)) _realR32Seeds = seeds;
+  return seeds;
+}
+function remapPredictorKO(pd) {
+  if (!realFieldReady()) return pd;
+  const ko = pd.ko || {}, finals = pd.finals || {};
+  const seeds = realR32SeedPairs();
+  const stale = R32_DEF.some(def => { const r = ko[def.id];
+    return r && r.winner && !(seeds[def.id] || []).includes(r.winner); });
+  if (!stale) return pd;
+
+  // Head-to-head edges (unordered pair → picked winner + the round it was picked at)
+  // + how deep each team was sent (number of KO wins: R32 win = 1 … Final win = 5).
+  const pairKey = (a, b) => [a, b].sort().join('|');
+  const edges = {}, depth = {};
+  const ROUND_WINS = { r32:1, r16:2, qf:3, sf:4 };
+  const note = (rec, d) => {
+    if (!rec || !rec.winner) return;
+    if (rec.loser) edges[pairKey(rec.winner, rec.loser)] = { winner: rec.winner, round: d };
+    depth[rec.winner] = Math.max(depth[rec.winner] || 0, d);
+    if (rec.loser) depth[rec.loser] = Math.max(depth[rec.loser] || 0, d - 1);
+  };
+  for (const [id, rec] of Object.entries(ko)) note(rec, ROUND_WINS[id.split('-')[0]] || 0);
+  note(finals.final, 5);
+  if (finals.thirdPlace && finals.thirdPlace.winner && finals.thirdPlace.loser)
+    edges[pairKey(finals.thirdPlace.winner, finals.thirdPlace.loser)] =
+      { winner: finals.thirdPlace.winner, round: 5 };
+
+  const out = { picks: pd.picks || {}, ko: {}, finals: { final:null, thirdPlace:null } };
+  if (pd.createdAt) out.createdAt = pd.createdAt;
+  const store = (id, winner, a, b) => {
+    const rec = { winner, loser: winner === a ? (b || null) : (a || null), predicted:true };
+    if (id === 'final') out.finals.final = rec;
+    else if (id === 'third-place') out.finals.thirdPlace = rec;
+    else out.ko[id] = rec;
+  };
+  const rounds = [[R32_DEF, 1], [R16_DEF, 2], [QF_DEF, 3], [SF_DEF, 4], [[FINAL_DEF], 5]];
+  for (const [defs, wins] of rounds) {
+    const ps = predStateFrom(out);            // seeds reflect rounds resolved so far
+    const pairs = defs.map(def => predKOTeams(def, ps));
+    const pending = [];
+    defs.forEach((def, i) => {                // pass 1: exact stored head-to-heads
+      const [a, b] = pairs[i];
+      const e = a && b ? edges[pairKey(a, b)] : null;
+      if (e) store(def.id, e.winner, a, b); else pending.push(i);
+    });
+    for (const i of pending) {                // pass 2: intent — lookahead edge, then depth
+      const def = defs[i], [a, b] = pairs[i];
+      if (!a && !b) continue;
+      if (!a || !b) {                         // half-known matchup: advance a team they
+        const s = a || b;                     // sent at least this deep anyway
+        if ((depth[s] || 0) >= wins) store(def.id, s, a, b);
+        continue;
+      }
+      // Which choice recreates a stored pick against the adjacent game's winner?
+      // Only a pick from a DEEPER round counts as evidence of that next-round meeting
+      // (a same-round head-to-head means one already eliminated the other).
+      const sib = defs[i % 2 === 0 ? i + 1 : i - 1];
+      const sibRec = sib && (sib.id === 'final' ? out.finals.final : out.ko[sib.id]);
+      const look = c => {
+        const e = sibRec && edges[pairKey(c, sibRec.winner)];
+        return e && e.round > wins ? 1 : 0;
+      };
+      const eligible = c => look(c) > 0 || (depth[c] || 0) >= wins;
+      const rank = c => eligible(c) ? look(c) * 10 + (depth[c] || 0) + 1 : 0;
+      const ra = rank(a), rb = rank(b);
+      if (ra > rb) store(def.id, a, a, b);
+      else if (rb > ra) store(def.id, b, a, b);
+      // tie (incl. neither eligible) → leave the game unpicked
+    }
+  }
+  { // 3rd-place playoff: seeds are the semifinal losers
+    const ps = predStateFrom(out);
+    const [a, b] = predKOTeams(THIRD_DEF, ps);
+    const tp = finals.thirdPlace;
+    if (a && b) {
+      const e = edges[pairKey(a, b)];
+      const w = (e && e.winner) || (tp && (tp.winner === a || tp.winner === b) ? tp.winner : null);
+      if (w) store('third-place', w, a, b);
+    } else if (a || b) {
+      const s = a || b;
+      if (tp && tp.winner === s) store('third-place', s, a, b);
+    }
+  }
+  return out;
+}
+
+// One-time migration for a stale LOCAL bracket (made on the pre-fix layout).
+let _ownRoadsChecked = false;
+function ensureOwnPredictorRoads() {
+  if (viewingPred || _ownRoadsChecked || !realFieldReady()) return;
+  const mapped = remapPredictorKO(predictor);
+  if (mapped !== predictor) {
+    predictor = mapped;
+    lsSet('wcPredictor', predictor);
+    showToast('Your bracket was re-mapped onto the official bracket roads');
+  }
+  _ownRoadsChecked = true;
+}
+
 function setPredPick(eventId, val) {
   if (viewingPred) { showToast(`Read-only — this is ${viewingPred.name}'s bracket`); return; }
   if (realFieldReady()) { showToast('Group stage is over — make your picks in the knockout bracket'); return; }
@@ -2831,8 +2950,9 @@ function prunePredKO() {
 }
 
 // When you create a knockout bracket mid-tournament, the games already decided AT
-// CREATION are auto-advanced to their real winner (and thus credited) — you can't pick a
-// game that's already been played. Runs ONCE per bracket (gated by `predictor.createdAt`,
+// CREATION are auto-advanced to their real winner so the tree still flows — but they
+// score 0 (the creation-time cutoff in scorePredictor treats them as misses; you can't
+// be credited for picking the past). Runs ONCE per bracket (gated by `predictor.createdAt`,
 // cleared by the resets so a fresh bracket re-backfills); games decided AFTER creation are
 // yours to pick. Only fills empty slots, never your own picks, never while viewing.
 function autoAdvanceDecidedKO() {
@@ -2866,35 +2986,45 @@ function autoAdvanceDecidedKO() {
 
 // Score a predictor object: group games per real result (+1), knockouts by
 // advancement vs reality (PRED_PTS escalation).
-function scorePredictor(pd) {
+// `cutoff` (ms) is when the bracket was created: a pick only earns credit if its real
+// game kicked off AFTER that — you can't be credited for predicting the past. Games
+// decided before the cutoff still count as graded (i.e. misses).
+function scorePredictor(pd, cutoff) {
   const picks = pd.picks || {}, key = buildAnswerKey();
+  cutoff = cutoff || 0;
   const out = { total:0, group:0, ko:0, correct:0, graded:0, koGraded:0, koCorrect:0,
     byStage:{ group:0, r32:0, r16:0, qf:0, sf:0, third:0, fin:0 } };
   for (const m of live.matches || []) {
     if (m.state !== 'post' || !(m.round || '').startsWith('Group')) continue;
     const pick = picks[m.id]; if (!pick) continue;
     out.graded++;
-    if (pick === predOutcome(m)) { out.group += PRED_PTS.group; out.byStage.group += PRED_PTS.group; out.correct++; }
+    if (pick === predOutcome(m) && new Date(m.date).getTime() > cutoff) {
+      out.group += PRED_PTS.group; out.byStage.group += PRED_PTS.group; out.correct++;
+    }
   }
   const pr = predictedReached(predStateFrom(pd));
-  const add = (teams, realSet, pts, stage) => { for (const t of teams) if (realSet.has(t)) { out.ko += pts; out.byStage[stage] += pts; } };
-  add(pr.r16, key.reached.r16, PRED_PTS.r32, 'r32');
-  add(pr.qf,  key.reached.qf,  PRED_PTS.r16, 'r16');
-  add(pr.sf,  key.reached.sf,  PRED_PTS.qf,  'qf');
-  add(pr.fin, key.reached.fin, PRED_PTS.sf,  'sf');
-  if (pr.champ && key.champ && pr.champ === key.champ) { out.ko += PRED_PTS.fin; out.byStage.fin += PRED_PTS.fin; }
-  if (pr.third && key.third && pr.third === key.third) { out.ko += PRED_PTS.third; out.byStage.third += PRED_PTS.third; }
+  const add = (teams, realSet, atMap, pts, stage) => { for (const t of teams)
+    if (realSet.has(t) && (atMap[t] || 0) > cutoff) { out.ko += pts; out.byStage[stage] += pts; } };
+  add(pr.r16, key.reached.r16, key.reachedAt.r16, PRED_PTS.r32, 'r32');
+  add(pr.qf,  key.reached.qf,  key.reachedAt.qf,  PRED_PTS.r16, 'r16');
+  add(pr.sf,  key.reached.sf,  key.reachedAt.sf,  PRED_PTS.qf,  'qf');
+  add(pr.fin, key.reached.fin, key.reachedAt.fin, PRED_PTS.sf,  'sf');
+  if (pr.champ && key.champ && pr.champ === key.champ && (key.champAt || 0) > cutoff) { out.ko += PRED_PTS.fin; out.byStage.fin += PRED_PTS.fin; }
+  if (pr.third && key.third && pr.third === key.third && (key.thirdAt || 0) > cutoff) { out.ko += PRED_PTS.third; out.byStage.third += PRED_PTS.third; }
   out.total = out.group + out.ko;
   // Knockout games graded so far: a pick is graded once its team has advanced (correct)
-  // or been eliminated (wrong) in reality.
+  // or been eliminated (wrong) in reality. A correct call whose game kicked off before
+  // the bracket existed grades as a miss.
   const koIn = pd.ko || {}, finIn = pd.finals || {};
   const koDecide = (id, team) => {
     const rk = id === 'final' ? 'fin' : id === 'third-place' ? 'third' : id.split('-')[0];
-    let advanced, lost;
-    if (rk === 'fin') { advanced = !!key.champ && team === key.champ; lost = !advanced && key.eliminated.has(team); }
-    else if (rk === 'third') { advanced = !!key.third && team === key.third; lost = !!key.third && team !== key.third; }
-    else { const rs = rk==='r32'?key.reached.r16:rk==='r16'?key.reached.qf:rk==='qf'?key.reached.sf:key.reached.fin; advanced = rs.has(team); lost = !advanced && key.eliminated.has(team); }
-    return { graded: advanced || lost, correct: advanced };
+    let advanced, lost, at = 0;
+    if (rk === 'fin') { advanced = !!key.champ && team === key.champ; lost = !advanced && key.eliminated.has(team); at = key.champAt || 0; }
+    else if (rk === 'third') { advanced = !!key.third && team === key.third; lost = !!key.third && team !== key.third; at = key.thirdAt || 0; }
+    else { const rs = rk==='r32'?key.reached.r16:rk==='r16'?key.reached.qf:rk==='qf'?key.reached.sf:key.reached.fin;
+      const am = rk==='r32'?key.reachedAt.r16:rk==='r16'?key.reachedAt.qf:rk==='qf'?key.reachedAt.sf:key.reachedAt.fin;
+      advanced = rs.has(team); lost = !advanced && key.eliminated.has(team); at = am[team] || 0; }
+    return { graded: advanced || lost, correct: advanced && at > cutoff };
   };
   const tally = (id, rec) => { if (rec && rec.winner) { const d = koDecide(id, rec.winner); if (d.graded) { out.koGraded++; if (d.correct) out.koCorrect++; } } };
   for (const def of ALL_KO) tally(def.id, koIn[def.id]);
@@ -2911,12 +3041,13 @@ function predKOPickCount() {
 // Wipe every knockout winner so the bracket is back to seeded-but-unpicked.
 function resetPredictorKO() {
   if (viewingPred) return;
+  if (predKOPickCount() && !confirm('Reset all knockout picks? Your bracket restarts from now — games already decided will count as misses (score 0).')) return;
   predictor.ko = {};
   predictor.finals = { final: null, thirdPlace: null };
   delete predictor.createdAt;   // re-backfill already-played games on next render
   lsSet('wcPredictor', predictor);
   renderPredictor();
-  showToast('Knockout picks cleared — already-played games stay credited');
+  showToast('Knockout picks cleared — already-decided games now score 0');
 }
 
 // Wipe every predictor pick (group calls + knockouts) back to a blank slate.
@@ -3049,18 +3180,27 @@ function predMatchCardHTML(def, ps, key) {
     // advanced = this pick already came true in reality; lost = this pick's team is
     // actually OUT (lost the deciding real game). A pick is only graded "✗ 0" when it's
     // truly decided wrong — games that haven't been played yet stay neutral (no ✗).
-    let advanced, lost;
+    // A game that kicked off before this bracket existed earns nothing (🔒 0).
+    const cutoff = viewingPred ? (viewingPred.cutoff || 0) : (predictor.createdAt || 0);
+    let advanced, lost, at = 0;
     if (roundKey === 'fin') {
       advanced = !!key.champ && pick === key.champ;
       lost = !advanced && key.eliminated.has(pick);
+      at = key.champAt || 0;
     } else if (roundKey === 'third') {
       advanced = !!key.third && pick === key.third;
       lost = !!key.third && pick !== key.third;
+      at = key.thirdAt || 0;
     } else {
       advanced = realSet ? realSet.has(pick) : false;
       lost = !advanced && key.eliminated.has(pick);
+      const atMap = roundKey === 'r32' ? key.reachedAt.r16 : roundKey === 'r16' ? key.reachedAt.qf
+        : roundKey === 'qf' ? key.reachedAt.sf : key.reachedAt.fin;
+      at = atMap[pick] || 0;
     }
-    badge = advanced ? `<span class="ko-pts win">+${pts}</span>`
+    badge = advanced ? (at > cutoff
+        ? `<span class="ko-pts win">+${pts}</span>`
+        : `<span class="ko-pts pre" title="Already decided when this bracket was created — no credit">🔒 0</span>`)
       : lost ? `<span class="ko-pts loss">✗ 0</span>`
       : `<span class="ko-pts on">+${pts}</span>`;
   } else {
@@ -3116,7 +3256,8 @@ function renderPredictor() {
     summary.innerHTML = ''; filters.innerHTML = '';
     return;
   }
-  const sc = scorePredictor(predictor);
+  ensureOwnPredictorRoads();
+  const sc = scorePredictor(predictor, viewingPred ? (viewingPred.cutoff || 0) : (predictor.createdAt || 0));
   const n = predPickCount();
   const koPicked = predKOPickCount();
   const banked = realFieldReady() ? 12 : Object.keys(GROUPS).filter(g => deriveGroupStandings(g)).length;
@@ -3159,7 +3300,7 @@ function renderPredictor() {
       list.innerHTML = `<div class="pred-gate">Loading the real bracket… knockout matchups appear once all 12 group tables are final.<br>
         <button class="btn btn-small btn-gold" style="margin-top:10px" onclick="refreshLive(true).then(renderPredictor)">⟳ Refresh</button></div>`;
     } else {
-      autoAdvanceDecidedKO();   // credit games already played before this bracket existed
+      autoAdvanceDecidedKO();   // fill games already played (structure only — they score 0)
       const ps = predBracketState();
       const key = buildAnswerKey();
       const champ = predictor.finals.final ? predictor.finals.final.winner : null;
@@ -3325,7 +3466,7 @@ function myKnockoutBracketHTML(hasReal) {
       </div></div>`;
   }
   const champ = pd.finals.final ? pd.finals.final.winner : null;
-  const sc = scorePredictor(pd);
+  const sc = scorePredictor(pd, pd.createdAt || 0);
   const myName = (localStorage.getItem('wcPublishName') || '').toLowerCase();
   const published = !!myName && explore.list.some(e => e.kind === 'predictor' && (e.name||'').toLowerCase() === myName);
   return `<div class="gb-h">🎯 My knockout bracket <span class="tk-sub">your picks — tap to keep editing on the Knockout bracket tab</span></div>
@@ -3453,11 +3594,14 @@ function predictorLeaderboardHTML(entries) {
   document.getElementById('gb-tabs').innerHTML = '';
   const myName = (localStorage.getItem('wcPublishName') || '').toLowerCase();
   const toRow = ({ b, payload }) => {
-    const pd = { picks: sanitizePredictorPicks(payload && payload.picks),
+    let pd = { picks: sanitizePredictorPicks(payload && payload.picks),
       ko: (payload && payload.ko) || {}, finals: (payload && payload.finals) || {} };
+    pd = remapPredictorKO(pd);   // old-layout entries score/render on the real roads
     const n = Object.keys(pd.picks).length + Object.keys(pd.ko).length +
       (pd.finals.final ? 1 : 0) + (pd.finals.thirdPlace ? 1 : 0);
-    return { b, sc: scorePredictor(pd), n };
+    // Entries only earn credit for games that kicked off after they were created —
+    // a bracket made mid-tournament counts the already-decided games as misses.
+    return { b, sc: scorePredictor(pd, b.createdAt || b.ts || 0), n };
   };
   // A live "knockout bracket" has knockout picks/a final AND carries NO group-stage
   // picks. Anything that includes group-stage calls is "from the group stage" and drops
@@ -3500,7 +3644,7 @@ function predictorLeaderboardHTML(entries) {
   };
   const liveHTML = live.length
     ? `<p class="lb-note" style="font-size:12px;color:var(--muted);margin:0 0 10px">${anyGraded
-        ? 'Knockout brackets scored by advancement vs reality · R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd +8 · Final +32'
+        ? 'Knockout brackets scored by advancement vs reality · R32 +2 · R16 +4 · QF +8 · SF +16 · 3rd +8 · Final +32 · games already decided when an entry was created score 0'
         : 'No knockout games finished yet — scores appear as the bracket plays out.'}</p>
       <div class="lb-list">${live.map(r => rowHTML(r, true)).join('')}</div>`
     : `<p class="live-empty">No knockout brackets published yet — pick yours on the 🎯 Knockout bracket tab and hit Publish to be first on the board.</p>`;
@@ -3516,6 +3660,7 @@ function renderExplore() {
   // (saveState only fires on edits; landing here straight from a fresh load
   // otherwise left the active bracket missing from its own list).
   if (!viewing) { try { persistActive(); } catch {} }
+  ensureOwnPredictorRoads();   // stale local knockout bracket → real roads before scoring
   const meta = document.getElementById('explore-meta');
   const grid = document.getElementById('explore-grid');
   // say exactly which bracket the header button will publish
@@ -3585,9 +3730,12 @@ function viewSharedPredictor(entryId) {
     const p = decodeHash(e.hash);
     pd = { picks: sanitizePredictorPicks(p && p.picks), ko: (p && p.ko) || {},
       finals: (p && p.finals) || { final: null, thirdPlace: null } };
+    pd = remapPredictorKO(pd);   // old-layout entries render on the real roads
   } catch { showToast('Could not load that bracket'); return; }
   if (!viewingPred) predBackup = predictor;
-  viewingPred = { name: e.name || '' };
+  // cutoff = when the entry was created (server keeps first-publish time across
+  // republishes) — games decided before it show 🔒 and score 0
+  viewingPred = { name: e.name || '', cutoff: e.createdAt || e.ts || 0 };
   predictor = pd;
   predFilter = 'ko';
   _openingPredView = true;
