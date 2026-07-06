@@ -31,7 +31,7 @@ def index():
 # env vars, it falls back to a JSON file next to server.py.
 BRACKETS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'brackets.local.json')
 # Frozen competition: POST /api/brackets rejects all mutations while True.
-BOARD_LOCKED = True
+BOARD_LOCKED = False  # TEMPORARILY open for an owner edit — re-lock immediately after
 KV_KEY = 'wc2026:brackets'
 
 def kv_config():
